@@ -178,7 +178,19 @@ uv run python -m scripts.check_cloud_adapters --provider tencent
 
 注意：Adapter 首版已经实现，但必须使用真实账号验证 Endpoint、CAM/RAM 权限、WAF 字段名和查询语法后，才能认为云端联调通过。当前过滤字段映射是可调整的初始值，不代表已验证适用于你的 WAF 日志。
 
-## 10. 采集存储模块（首版）
+## 10. 多厂商 WAF Schema 分析（首版）
+
+新增厂商无关的 Schema Profiler 与批量分析命令：
+
+```powershell
+uv run python -m scripts.analyze_waf_schema --provider aliyun --lookback-hours 24 --records 500 --page-size 200
+```
+
+当前支持 `aliyun` 与 `tencent` 两个已实现 Adapter。分析器自动分页采样，输出字段路径、类型、覆盖次数，以及安全字段在**同一条日志内**的共现关系。任意日志值默认不输出；只有厂商字段注册表明确列入安全枚举白名单的字段才统计值分布。新增 WAF 厂商时，目标是新增 Adapter、字段语义注册表和脱敏样例测试，复用同一套 Profiler，不再为每家厂商重新手工编写分析脚本。
+
+旧版小样本检查命令 `scripts.inspect_waf_schema` 仍保留，适合快速连通性检查；批量分析优先使用新命令。
+
+## 11. 采集存储模块（首版）
 
 当前已增加 PostgreSQL-ready 的持久化与增量采集基础模块：
 
@@ -200,7 +212,7 @@ repository = StorageRepository(database.session_factory)
 
 已在项目依赖中加入 psycopg 3 PostgreSQL 驱动。当前代码不包含调度器，也不会自动启动云端采集；需要由后续服务层显式调用 `IncrementalCollector.collect()`。采集上限触发时不会推进 Checkpoint，下一轮通过重叠窗口继续读取并依靠 Fingerprint 去重。
 
-## 11. 文档维护
+## 12. 文档维护
 
 - 新想法先记录为 Proposal，不自动成为正式需求。
 - 确认的范围和约束更新到项目章程与需求文档。
@@ -209,7 +221,7 @@ repository = StorageRepository(database.session_factory)
 - 计划变更同步更新 Roadmap 和 Change Log。
 - 每次文档变更应通过 Git commit 保留历史。
 
-## 12. PoC 云凭据配置
+## 13. PoC 云凭据配置
 
 SLS 与 CLS 使用独立环境变量文件：
 
