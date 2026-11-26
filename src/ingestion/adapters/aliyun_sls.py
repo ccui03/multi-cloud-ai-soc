@@ -98,10 +98,13 @@ class AliyunSLSAdapter(BaseWAFAdapter):
         start = ensure_utc(request.start_time)
         end = ensure_utc(request.end_time)
         cursor = self.decode_cursor(request.cursor)
+        query = self._build_query(request.filters)
+        cursor_scope = {"query": query, "start": start.isoformat(), "end": end.isoformat()}
+        if cursor and any(cursor.get(key) != value for key, value in cursor_scope.items()):
+            raise ValueError("SLS cursor cannot be reused with a different query or time range")
         offset = int(cursor.get("offset", 0))
         if offset < 0:
             raise ValueError("Invalid SLS offset cursor")
-        query = self._build_query(request.filters)
         try:
             from aliyun.log import GetLogsRequest
             sdk_request = GetLogsRequest(
@@ -128,7 +131,7 @@ class AliyunSLSAdapter(BaseWAFAdapter):
                     raw=raw,
                 ))
             has_more = len(items) >= min(request.page_size, 1000)
-            next_cursor = self.encode_cursor({"offset": offset + len(items)}) if has_more and items else None
+            next_cursor = self.encode_cursor({**cursor_scope, "offset": offset + len(items)}) if has_more and items else None
             request_id = request.request_id or ""
             provider_request_id = None
             headers = getattr(response, "headers", None)
