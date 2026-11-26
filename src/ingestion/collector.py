@@ -62,7 +62,11 @@ class IncrementalCollector:
         if checkpoint is None:
             query_start = query_end - timedelta(seconds=self.initial_lookback_seconds)
         else:
-            query_start = ensure_utc(checkpoint.watermark_time) - timedelta(seconds=self.overlap_seconds)
+            watermark = checkpoint.watermark_time
+            # SQLite drops timezone metadata for DateTime(timezone=True); persisted values are UTC.
+            if watermark.tzinfo is None:
+                watermark = watermark.replace(tzinfo=timezone.utc)
+            query_start = ensure_utc(watermark) - timedelta(seconds=self.overlap_seconds)
         if query_start >= query_end:
             raise ValueError("Calculated ingestion window is empty or reversed")
 
