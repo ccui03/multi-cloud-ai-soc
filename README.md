@@ -2,7 +2,7 @@
 
 面向多云环境的 AI 驱动安全运营平台。首期聚焦阿里云 WAF（SLS）与腾讯云 WAF（CLS），通过源端查询、轻量 Python Adapter 和 LangGraph 工作流，实现安全日志统一分析、攻击调查与报告生成。
 
-> 项目状态：PoC 设计与准备阶段  
+> 项目状态：PoC Adapter 首版已提交，等待真实云账号联调  
 > 当前文档版本：Project Baseline v1.1  
 > 更新时间：2026-11-26  
 > 文档语言：中文（技术名词保留英文）
@@ -134,7 +134,36 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 | Phase 4 | 审批与响应 PoC | 只读工具、审批门、审计 |
 | Phase 5 | 平台化 | UI、监控、部署和性能验证 |
 
-## 9. 文档维护
+## 9. 本地运行 Adapter
+
+建议使用 Python 3.10+。在仓库根目录执行：
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item config/.env.aliyun.example .env.aliyun
+Copy-Item config/.env.tencent.example .env.tencent
+```
+
+分别编辑两个 .env 文件，填写只读凭据、SLS Project/Logstore 或 CLS Topic ID。腾讯 CLS 的 `TENCENT_CLS_ENDPOINT` 使用 CLS 云 API Endpoint（通常为 `cls.tencentcloudapi.com`），Region 单独填写，例如 `ap-guangzhou`；不要填写 CLS 日志上传域名 `*.cls.tencentcs.com`。
+
+先运行本地契约测试：
+
+```powershell
+pytest -q
+```
+
+再单独验证云端查询（默认查询最近 15 分钟、每次最多返回 5 条，不会打印日志正文或密钥）：
+
+```powershell
+python -m scripts.check_cloud_adapters --provider aliyun
+python -m scripts.check_cloud_adapters --provider tencent
+```
+
+注意：Adapter 首版已经实现，但必须使用真实账号验证 Endpoint、CAM/RAM 权限、WAF 字段名和查询语法后，才能认为云端联调通过。当前过滤字段映射是可调整的初始值，不代表已验证适用于你的 WAF 日志。
+
+## 10. 文档维护
 
 - 新想法先记录为 Proposal，不自动成为正式需求。
 - 确认的范围和约束更新到项目章程与需求文档。
@@ -144,7 +173,7 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 - 每次文档变更应通过 Git commit 保留历史。
 
 
-## 10. PoC 云凭据配置
+## 11. PoC 云凭据配置
 
 SLS 与 CLS 使用独立环境变量文件：
 
