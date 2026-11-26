@@ -1,9 +1,12 @@
 # Python runtime
 python-dotenv>=1.0.1,<2.0
 
-# Cloud log query SDKs (read-only adapter usage)
-aliyun-log-python-sdk>=0.9.0
-tencentcloud-sdk-python-cls>=3.0.1300
+# Alibaba Cloud SLS SDK
+aliyun-log-python-sdk>=0.9.53,<1.0
+
+# Tencent Cloud API 3.0 SDK (CLS service module + shared runtime)
+tencentcloud-sdk-python-common>=3.1.207,<4.0
+tencentcloud-sdk-python-cls>=3.1.207,<4.0
 
 # Tests
 pytest>=8.0,<9.0
