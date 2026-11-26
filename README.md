@@ -194,11 +194,11 @@ uv run python -m scripts.check_cloud_adapters --provider tencent
 from src.storage import Database, StorageRepository
 
 database = Database("postgresql+psycopg://user:password@localhost:5432/ai_soc")
- database.create_schema()  # PoC only; production should use Alembic migrations
+database.create_schema()  # PoC only; production should use Alembic migrations
 repository = StorageRepository(database.session_factory)
 ```
 
-PostgreSQL 驱动（例如 psycopg）需在实际部署时另行加入依赖。当前代码不包含调度器，也不会自动启动云端采集；需要由后续服务层显式调用 `IncrementalCollector.collect()`。采集上限触发时不会推进 Checkpoint，下一轮通过重叠窗口继续读取并依靠 Fingerprint 去重。
+已在项目依赖中加入 psycopg 3 PostgreSQL 驱动。当前代码不包含调度器，也不会自动启动云端采集；需要由后续服务层显式调用 `IncrementalCollector.collect()`。采集上限触发时不会推进 Checkpoint，下一轮通过重叠窗口继续读取并依靠 Fingerprint 去重。
 
 ## 11. 文档维护
 
