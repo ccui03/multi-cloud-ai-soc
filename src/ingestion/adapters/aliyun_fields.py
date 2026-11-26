@@ -77,7 +77,6 @@ ALIYUN_FINAL_ACTION_MAP = {
     "captcha": "challenge",
     "sigchl": "challenge",
     "js": "challenge",
-    "sigchl": "challenge",
 }
 
 
