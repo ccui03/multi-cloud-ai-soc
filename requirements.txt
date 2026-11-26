@@ -1,0 +1,9 @@
+# Python runtime
+python-dotenv>=1.0.1,<2.0
+
+# Cloud log query SDKs (read-only adapter usage)
+aliyun-log-python-sdk>=0.9.0
+tencentcloud-sdk-python-cls>=3.0.1300
+
+# Tests
+pytest>=8.0,<9.0
