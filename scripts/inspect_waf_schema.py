@@ -12,26 +12,13 @@ from typing import Any
 from src.ingestion.adapters import AliyunSLSAdapter, TencentCLSAdapter
 from src.ingestion.config import load_aliyun_config, load_tencent_config
 from src.ingestion.models import QueryRequest
+from src.ingestion.adapters.aliyun_fields import ALIYUN_ALIYUN_SAFE_ENUM_FIELDS
 
 
 SENSITIVE_KEY_PARTS = (
     "cookie", "authorization", "token", "secret", "password", "passwd",
     "credential", "session", "phone", "mobile", "email", "user", "account",
     "identity", "id_card", "身份证", "手机号", "邮箱",
-)
-SAFE_ENUM_FIELDS = (
-    "status",
-    "upstream_status",
-    "request_method",
-    "https",
-    "server_protocol",
-    "ssl_protocol",
-    "final_action",
-    "final_plugin",
-    "scene_action",
-    "scene_rule_type",
-    "scene_test",
-    "bypass_matched_ids",
 )
 MAX_ENUM_VALUES = 10
 MAX_ENUM_VALUE_LENGTH = 80
@@ -82,7 +69,7 @@ def collect_safe_value_stats(records: list[dict[str, Any]]) -> dict[str, dict[st
     """Count values only for an explicit allowlist of low-risk enum-like fields."""
     stats: dict[str, dict[str, int]] = {}
     for record in records:
-        for field in SAFE_ENUM_FIELDS:
+        for field in ALIYUN_SAFE_ENUM_FIELDS:
             if field not in record:
                 continue
             value = record[field]
@@ -167,7 +154,7 @@ def main() -> int:
     if not enum_stats:
         print("  No allowlisted enum fields were present.")
     else:
-        for field in SAFE_ENUM_FIELDS:
+        for field in ALIYUN_SAFE_ENUM_FIELDS:
             values = enum_stats.get(field)
             if not values:
                 continue
