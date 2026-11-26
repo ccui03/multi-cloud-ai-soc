@@ -60,7 +60,6 @@ ALIYUN_SAFE_ENUM_FIELDS = (
     "compliance_test",
     "dlp_action",
     "dlp_test",
-    "bypass_matched_ids",
 )
 
 # Documented final_action values. The source value is always retained; this
