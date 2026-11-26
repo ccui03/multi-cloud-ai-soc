@@ -6,7 +6,6 @@ provider metadata. It intentionally does not print raw log values.
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -20,6 +19,17 @@ SENSITIVE_KEY_PARTS = (
     "credential", "session", "phone", "mobile", "email", "user", "account",
     "identity", "id_card", "身份证", "手机号", "邮箱",
 )
+SAFE_ENUM_FIELDS = (
+    "status",
+    "upstream_status",
+    "request_method",
+    "https",
+    "server_protocol",
+    "ssl_protocol",
+    "bypass_matched_ids",
+)
+MAX_ENUM_VALUES = 10
+MAX_ENUM_VALUE_LENGTH = 80
 
 
 def value_type(value: Any) -> str:
@@ -63,6 +73,27 @@ def collect_schema(value: Any, prefix: str, schema: dict[str, dict[str, Any]]) -
                         collect_schema(item, path + "[]", schema)
 
 
+def collect_safe_value_stats(records: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """Count values only for an explicit allowlist of low-risk enum-like fields."""
+    stats: dict[str, dict[str, int]] = {}
+    for record in records:
+        for field in SAFE_ENUM_FIELDS:
+            if field not in record:
+                continue
+            value = record[field]
+            if value is None:
+                normalized = "(null)"
+            elif isinstance(value, (dict, list)):
+                normalized = f"({value_type(value)})"
+            else:
+                normalized = str(value).strip() or "(empty)"
+            # Bound output length; never inspect arbitrary request/header fields.
+            normalized = normalized[:MAX_ENUM_VALUE_LENGTH]
+            field_stats = stats.setdefault(field, {})
+            field_stats[normalized] = field_stats.get(normalized, 0) + 1
+    return stats
+
+
 def build_adapter(provider: str, env_dir: str):
     if provider == "aliyun":
         config = load_aliyun_config(f"{env_dir}/.env.aliyun")
@@ -73,7 +104,7 @@ def build_adapter(provider: str, env_dir: str):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Inspect WAF log field names and types without printing log values."
+        description="Inspect WAF field names/types and selected safe enum values."
     )
     parser.add_argument("--provider", choices=("aliyun", "tencent"), required=True)
     parser.add_argument("--env-dir", default=".")
@@ -104,8 +135,9 @@ def main() -> int:
     ))
 
     schema: dict[str, dict[str, Any]] = {}
-    for record in page.records:
-        collect_schema(record.raw, "", schema)
+    raw_records = [record.raw for record in page.records]
+    for raw in raw_records:
+        collect_schema(raw, "", schema)
 
     print(f"provider: {args.provider}")
     print(f"source_id: {source_id}")
@@ -125,7 +157,23 @@ def main() -> int:
             sensitive = " [sensitive-name]" if is_sensitive_key(path.split(".")[-1].replace("[]", "")) else ""
             print(f"  {path}: types={types}; present_in_records={entry['count']}{suffix}{sensitive}")
 
-    print("\nPrivacy: raw log values, request URLs, IP addresses, headers, and credentials were not printed.")
+    print("\nSafe enum value counts (allowlisted fields only):")
+    enum_stats = collect_safe_value_stats(raw_records)
+    if not enum_stats:
+        print("  No allowlisted enum fields were present.")
+    else:
+        for field in SAFE_ENUM_FIELDS:
+            values = enum_stats.get(field)
+            if not values:
+                continue
+            ordered = sorted(values.items(), key=lambda item: (-item[1], item[0]))
+            print(f"  {field}:")
+            for value, count in ordered[:MAX_ENUM_VALUES]:
+                print(f"    {value!r}: {count}")
+            if len(ordered) > MAX_ENUM_VALUES:
+                print(f"    ... {len(ordered) - MAX_ENUM_VALUES} additional distinct values omitted")
+
+    print("\nPrivacy: only allowlisted enum-like values are shown; request URLs, IPs, headers, cookies, and credentials are not printed.")
     return 0
 
 
