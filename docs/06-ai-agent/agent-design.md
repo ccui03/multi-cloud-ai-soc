@@ -228,3 +228,15 @@ Scheduler 只创建任务，不持有厂商凭据；查询由已有受控 Query 
 - 无候选时可不调用 LLM，并记录扫描结果与原因。
 - 预算耗尽时有明确状态/告警，不会无限查询或无限调用模型。
 - 暂停/恢复/补跑可控且可审计；Agent 不执行云端写操作。
+
+## 13. 核心研判图与 Evidence Pack 契约（v2.2）
+
+详细字段和流程以 [核心分析引擎技术设计](../07-core-analysis-engine/core-analysis-engine-design.md) 为准。本节确立 Agent 层边界：
+
+- LangGraph 采用 Evidence Validation → Threat Hypothesis → Evidence Analysis → Counter-Evidence →（条件）Context Enrichment → Threat Classification → Report Generation → Persist & Audit。
+- 不合格证据包进入数据质量/补充证据分支；预算耗尽、查询失败或证据矛盾不得伪装成无威胁。
+- 只读工具包括受控日志查询、事件详情、行为上下文、WAF 规则元数据、历史基线和关联候选查询。工具调用必须经过后端权限、参数、范围、预算、脱敏和审计。
+- Agent 不持有云凭据，不直接访问任意日志范围，不执行 WAF 写操作。
+- 输出包含五级 verdict、severity、confidence、事实/推断/未知、支持证据 ID、反证 ID、攻击尝试、WAF 动作、后端到达、compromise 状态和建议。
+- confidence 在完成校准前只是模型信心估计，不应解释为统计概率。
+- 日志字段及请求内容均为不可信数据；模型必须忽略其中试图改变系统指令或工具权限的内容。
