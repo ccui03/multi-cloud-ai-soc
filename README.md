@@ -1,231 +1,101 @@
 # Multi-Cloud AI SOC
 
-面向多云环境的 AI 驱动安全运营平台。首期聚焦阿里云 WAF（SLS）与腾讯云 WAF（CLS），通过源端查询、轻量 Python Adapter 和 LangGraph 工作流，实现安全日志统一分析、攻击调查与报告生成。
+面向多云、多厂商安全数据源的 AI 安全运营平台。首期以阿里云 WAF（SLS）和腾讯云 WAF（CLS）为切入点，建设可复用的数据接入、Schema 发现、字段治理、统一事件、检测关联和 AI 调查能力。
 
-> 项目状态：阿里云 SLS Adapter 已完成真实连接测试；腾讯云 CLS 联调待完成；PostgreSQL 持久化与增量采集基础模块已提交  
-> 当前文档版本：Project Baseline v1.1  
-> 更新时间：2026-11-26  
-> 文档语言：中文（技术名词保留英文）
+> 项目定位：多厂商 AI SOC，首期 WAF PoC  
+> 规划版本：Project Plan v2.0  
+> 当前状态：优先完善产品与项目计划，暂缓无计划依据的新增代码开发  
+> 更新时间：2026-11-26
 
-## 1. 已确认的项目约束
+## 1. 产品目标
 
-| 项目 | 当前决定 |
+长期建设厂商可扩展的安全运营平台。新增厂商时主要扩展 Provider Adapter、Capability 声明和 Field Registry；Schema Profiler、Normalizer、检测关联和 Agent 工作流尽可能复用。
+
+首期只承诺阿里云 WAF/SLS 和腾讯云 WAF/CLS。其他云厂商、商业 WAF 和本地 WAF 属于后续候选，按业务场景、数据可用性和成本排序接入。
+
+## 2. 已确认约束
+
+| 项目 | 决策 |
 |---|---|
 | 首期数据源 | 阿里云 WAF → SLS；腾讯云 WAF → CLS |
-| SIEM | 不复用 QRadar；PoC 不单独部署传统 SIEM |
-| 日志获取 | 通过 SLS / CLS API 查询，不全量搬迁原始日志 |
-| 分析位置 | 优先在 SLS / CLS 过滤、查询和聚合；AI SOC 负责跨云分析 |
-| 部署规模 | 小规模、低成本 PoC |
-| 初期部署 | Docker Compose / 单机容器优先 |
-| 响应能力 | 首期以只读分析和处置建议为主；写操作默认关闭或人工审批 |
+| 长期方向 | 多厂商 WAF，后续评估其他安全数据源 |
+| SIEM | 不复用 QRadar；PoC 不部署独立传统 SIEM |
+| 原始日志 | 默认留在厂商日志服务，不全量搬迁 |
+| 接入方式 | Python Provider Adapter + 官方 SDK/API |
+| Schema | 通用 Profiler + 厂商 Field Registry + 版本化 Normalizer |
+| 数据库 | PostgreSQL + JSONB 起步 |
+| Agent | LangGraph；只处理有限、脱敏、证据化上下文 |
+| 部署 | 小规模低成本 PoC，Docker Compose 起步 |
+| 响应 | 首期只读；后续写操作必须策略校验和人工审批 |
 
-## 2. 项目目标
+## 3. 项目路线
 
-1. 统一查询阿里云 SLS 与腾讯云 CLS 中的 WAF 日志。
-2. 建立厂商隔离的 Python Adapter 接口。
-3. 支持增量采集、历史回溯、分页、重试、Checkpoint 和幂等去重。
-4. 建立统一安全事件模型，同时保留原始厂商字段。
-5. 使用确定性查询、聚合和规则筛选日志，避免把海量原始日志直接发送给 LLM。
-6. 使用 LangGraph 实现告警分诊、攻击调查和报告生成。
-7. 保留证据、分析过程和操作审计。
+详细计划见 [Project Roadmap](docs/05-development-plan/roadmap.md)。
 
-## 3. 首期范围
+| 阶段 | 目标 |
+|---|---|
+| Phase 0 | 产品与需求规划 |
+| Phase 1 | 数据源与能力验证 |
+| Phase 2 | 多厂商接入基础 |
+| Phase 3 | Schema 与标准化平台 |
+| Phase 4 | 检测与关联分析 |
+| Phase 5 | AI 调查与报告 |
+| Phase 6 | SOC 工作台与运营闭环 |
+| Phase 7 | 响应与企业化演进 |
 
-### In scope
-- 阿里云 SLS 与腾讯云 CLS 的只读日志查询 Adapter
-- 源端时间过滤、关键词/条件过滤和聚合查询（以实际服务能力验证为准）
-- 按时间窗口增量查询和按需历史回溯
-- 统一事件字段映射、原始事件保留
-- PostgreSQL 保存 Checkpoint、标准化事件、分析结果和审计元数据
-- LangGraph 安全分析 PoC
-- Docker Compose 本地/单机部署
-
-### Out of scope（首期）
-- QRadar 集成或替换
-- Kafka、OpenSearch、TheHive、Shuffle 等额外基础设施的强制部署
-- 将全部原始 WAF 日志复制到 AI SOC
-- 无审批的自动封禁或 WAF 策略修改
-- 多云全面覆盖和生产级高可用
-- 面向公网的多租户 SaaS
-
-## 4. 初步技术基线
-
-| 层次 | 首期方案 | 备注 |
-|---|---|---|
-| 云日志源 | Alibaba Cloud SLS / Tencent Cloud CLS | 原始日志留在源端 |
-| 数据接入 | Python Adapter + 官方 SDK/API | 分别封装厂商查询差异 |
-| 查询调度 | Python 定时任务/后台任务 | 初期不引入 Kafka |
-| 统一事件模型 | 自定义轻量模型，参考 OCSF | 保留 raw_event 与 schema_version |
-| 业务存储 | PostgreSQL + JSONB | Checkpoint、事件、分析结果 |
-| API | Python + FastAPI | 数据源、查询、事件和分析接口 |
-| Agent | LangGraph | 只通过受控只读工具访问日志 |
-| 前端 | React（后续阶段） | PoC 可先用 API/简单页面验证 |
-| 部署 | Docker Compose | 低资源单机 PoC |
-
-OpenSearch、Kafka、Redis、TheHive、MISP、Shuffle 均作为后续候选，只有出现明确容量或功能需求时再引入。
-
-## 5. 推荐数据流
+## 4. 核心架构
 
 ```text
-Alibaba WAF -> SLS -----> AliyunSLSAdapter --+
-                                             |
-                                             +--> Ingestion Service
-                                             |       |
-Tencent WAF -> CLS ----> TencentCLSAdapter -+       v
-                                               Normalize / Deduplicate
-                                                       |
-                                      +----------------+----------------+
-                                      |                                 |
-                               PostgreSQL                     Query back to SLS/CLS
-                         (checkpoint/events/results)          (investigation context)
-                                      |
-                                      v
-                              FastAPI / LangGraph
-                                      |
-                          Triage / Investigation / Report
+WAF Vendors / Log Sources
+        |
+Provider Adapters + Capability Registry
+        |
+Ingestion / Query Planner
+        |
+Schema Discovery + Field Registry
+        |
+Normalizer (Core Event + Vendor Extension)
+        |
+Detection + Correlation + Event/Case Service
+        |
+FastAPI / SOC UI
+        |
+LangGraph Triage / Investigation / Reporting
+        |
+Human Approval (future response phase)
 ```
 
-AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间范围、字段条件和聚合查询；将命中事件、必要上下文和聚合结果送入统一分析流程。调查时再按 IP、域名、URI、规则和时间范围回查源日志。
+## 5. 当前技术验证基础
 
-## 6. 仓库结构
+- 阿里云 SLS Adapter 已完成一次真实连接和查询验证。
+- 腾讯云 CLS Adapter 已实现；真实云端联调仍需确认。
+- PostgreSQL 持久化、Checkpoint 和基础增量采集模块已提交。
+- 通用 Schema Profiler 第一版已提交，尚需执行测试和真实样本验证。
+- 正式统一安全事件模型、完整 Field Registry 治理、检测关联和 Agent 工作流仍属于规划/待实现内容。
 
-```text
-.
-├── README.md
-├── pyproject.toml
-├── uv.lock                 # 首次执行 uv lock / uv sync 后生成
-├── requirements.txt        # 兼容传统 pip 的依赖清单（暂时保留）
-├── docs/
-│   ├── 01-project-planning/
-│   ├── 02-requirements/
-│   ├── 03-architecture/
-│   ├── 04-technology-selection/
-│   ├── 05-development-plan/
-│   ├── 06-ai-agent/
-│   ├── 07-api-design/
-│   ├── 08-deployment/
-│   └── 09-records/
-├── src/
-│   ├── ingestion/
-│   ├── storage/              # PostgreSQL models and repositories
-│   ├── api/
-│   └── agents/
-├── tests/
-├── config/
-└── docker/
-```
+注意：代码存在不代表对应能力已完成验收。阶段验收以 Roadmap 中 Exit Criteria 和测试记录为准。
+
+## 6. 项目文档
+
+- [项目章程](docs/01-project-planning/project-charter.md)
+- [需求规格](docs/02-requirements/requirements.md)
+- [总体架构](docs/03-architecture/architecture.md)
+- [技术选型](docs/04-technology-selection/technology-stack.md)
+- [项目路线图](docs/05-development-plan/roadmap.md)
+- [AI Agent 设计](docs/06-ai-agent/agent-design.md)
+- [日志接入设计](docs/07-api-design/log-ingestion-design.md)
+- [决策记录](docs/09-records/decision-log.md)
 
 ## 7. 开发与安全原则
 
-- 源端优先：尽量在 SLS / CLS 查询端过滤和聚合，避免无差别下载。
-- 游标/时间窗口：记录每个数据源独立的 Checkpoint；使用重叠窗口容忍延迟日志。
-- 幂等处理：至少一次读取，依靠稳定事件键/哈希去重；不要假设 API 返回天然 exactly-once。
-- 规则优先：先过滤、聚合和关联，再让 LLM 分析有限上下文。
-- 最小权限：云凭据只授予目标 Project/Logstore 或 Topic 的只读查询权限。
-- 日志不可信：URL、User-Agent、Header、请求参数都视为不可信数据，不得作为 Agent 指令。
-- 人工审批：首期不执行自动封禁；写操作必须经过策略校验和人工批准。
-- 可审计：记录查询范围、过滤条件、数据源、事件证据、模型输出和审批/执行结果。
-- 不提交密钥、Token、真实客户数据或未脱敏日志。
+- 先确定业务场景和验收标准，再开发功能。
+- Schema 自动分析负责发现结构，不负责猜测安全语义。
+- 未知字段/枚举保留并标记 unknown，不擅自推断 allow/block。
+- 标准化事件保留原始来源、字段扩展和解析版本。
+- 先规则、统计和查询，再调用 LLM。
+- URL、User-Agent、Header、Cookie、请求参数和响应片段均是不可信数据。
+- Agent 不持有云凭据，不拥有默认写权限。
+- 记录查询成本、数据量、存储增长和 LLM Token 消耗。
+- 不提交密钥、Token 或未脱敏真实日志。
 
-## 8. 项目阶段
-
-| 阶段 | 目标 | 主要交付物 |
-|---|---|---|
-| Phase 0 | 需求和数据源确认 | 样例日志、权限清单、查询验证 |
-| Phase 1 | SLS / CLS Adapter | 统一接口、分页、Checkpoint、测试 |
-| Phase 2 | 事件标准化与检测 | 统一模型、去重、聚合与查询 |
-| Phase 3 | AI 调查 | LangGraph 工作流、证据化报告 |
-| Phase 4 | 审批与响应 PoC | 只读工具、审批门、审计 |
-| Phase 5 | 平台化 | UI、监控、部署和性能验证 |
-
-## 9. 本地开发环境（uv）
-
-项目使用 `uv` 管理 Python 环境和依赖。建议使用 Python 3.10 或更高版本。
-
-安装 uv 后，在仓库根目录执行：
-
-```powershell
-uv sync
-```
-
-该命令会根据 `pyproject.toml` 创建/更新项目虚拟环境、安装运行依赖和开发依赖，并生成或更新 `uv.lock`。无需手动激活虚拟环境。
-
-在 VS Code 中选择解释器：`Ctrl+Shift+P` → `Python: Select Interpreter` → 选择项目下的 `.venv\\Scripts\\python.exe`。
-
-首次创建本地云凭据文件：
-
-```powershell
-Copy-Item config/.env.aliyun.example .env.aliyun
-Copy-Item config/.env.tencent.example .env.tencent
-```
-
-分别编辑两个文件，填写只读凭据、SLS Project/Logstore 或 CLS Topic ID。腾讯 CLS 的 `TENCENT_CLS_ENDPOINT` 使用 CLS 云 API Endpoint（通常为 `cls.tencentcloudapi.com`），Region 单独填写，例如 `ap-guangzhou`；不要填写 CLS 日志上传域名 `*.cls.tencentcs.com`。
-
-运行本地契约测试：
-
-```powershell
-uv run pytest -q
-```
-
-单独验证云端查询（默认查询最近 15 分钟、每次最多返回 5 条，不会打印日志正文或密钥）：
-
-```powershell
-uv run python -m scripts.check_cloud_adapters --provider aliyun
-uv run python -m scripts.check_cloud_adapters --provider tencent
-```
-
-也可以使用 `uv run python ...` 执行其他项目命令。添加/移除依赖分别使用 `uv add <package>` / `uv remove <package>`；添加开发依赖使用 `uv add --dev <package>`。依赖版本以提交的 `uv.lock` 为准。
-
-注意：Adapter 首版已经实现，但必须使用真实账号验证 Endpoint、CAM/RAM 权限、WAF 字段名和查询语法后，才能认为云端联调通过。当前过滤字段映射是可调整的初始值，不代表已验证适用于你的 WAF 日志。
-
-## 10. 多厂商 WAF Schema 分析（首版）
-
-新增厂商无关的 Schema Profiler 与批量分析命令：
-
-```powershell
-uv run python -m scripts.analyze_waf_schema --provider aliyun --lookback-hours 24 --records 500 --page-size 200
-```
-
-当前支持 `aliyun` 与 `tencent` 两个已实现 Adapter。分析器自动分页采样，输出字段路径、类型、覆盖次数，以及安全字段在**同一条日志内**的共现关系。任意日志值默认不输出；只有厂商字段注册表明确列入安全枚举白名单的字段才统计值分布。新增 WAF 厂商时，目标是新增 Adapter、字段语义注册表和脱敏样例测试，复用同一套 Profiler，不再为每家厂商重新手工编写分析脚本。
-
-旧版小样本检查命令 `scripts.inspect_waf_schema` 仍保留，适合快速连通性检查；批量分析优先使用新命令。
-
-## 11. 采集存储模块（首版）
-
-当前已增加 PostgreSQL-ready 的持久化与增量采集基础模块：
-
-- `src/storage/models.py`：`waf_records` 与 `ingestion_checkpoints` 两张表；原始字段使用 PostgreSQL JSONB（SQLite 测试时使用 JSON）。
-- `src/storage/database.py`：SQLAlchemy Engine / Session 管理与 PoC schema 初始化。
-- `src/storage/repository.py`：Fingerprint 幂等写入、Checkpoint 读写。
-- `src/ingestion/collector.py`：有界时间窗口、分页采集、重叠窗口和记录数上限；只有全部分页成功才推进 Checkpoint。
-- `tests/test_ingestion_storage.py`：使用 SQLite 验证去重、分页、Checkpoint 和失败保护。
-
-安装依赖后，业务入口可按以下方式初始化数据库（PoC 开发阶段）：
-
-```python
-from src.storage import Database, StorageRepository
-
-database = Database("postgresql+psycopg://user:password@localhost:5432/ai_soc")
-database.create_schema()  # PoC only; production should use Alembic migrations
-repository = StorageRepository(database.session_factory)
-```
-
-已在项目依赖中加入 psycopg 3 PostgreSQL 驱动。当前代码不包含调度器，也不会自动启动云端采集；需要由后续服务层显式调用 `IncrementalCollector.collect()`。采集上限触发时不会推进 Checkpoint，下一轮通过重叠窗口继续读取并依靠 Fingerprint 去重。
-
-## 12. 文档维护
-
-- 新想法先记录为 Proposal，不自动成为正式需求。
-- 确认的范围和约束更新到项目章程与需求文档。
-- 架构决策记录在 `docs/09-records/decision-log.md`。
-- 采集接口和查询约定记录在 `docs/07-api-design/log-ingestion-design.md`。
-- 计划变更同步更新 Roadmap 和 Change Log。
-- 每次文档变更应通过 Git commit 保留历史。
-
-## 13. PoC 云凭据配置
-
-SLS 与 CLS 使用独立环境变量文件：
-
-- 阿里云模板：`config/.env.aliyun.example` → 本地复制为根目录 `.env.aliyun`
-- 腾讯云模板：`config/.env.tencent.example` → 本地复制为根目录 `.env.tencent`
-
-真实 `.env.aliyun` / `.env.tencent` 已由 `.gitignore` 忽略，不得提交。模板文件只包含空值。Adapter 应显式加载各自文件，不要让两个 Adapter 共用一个默认 `.env`。详细说明见 [日志接入设计](docs/07-api-design/log-ingestion-design.md#16-独立环境变量文件poc)。
+本仓库已有代码和本地运行说明以各模块文档为准；当前阶段优先做规划和设计评审。
