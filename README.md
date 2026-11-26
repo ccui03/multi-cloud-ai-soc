@@ -142,3 +142,18 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 - 采集接口和查询约定记录在 `docs/07-api-design/log-ingestion-design.md`。
 - 计划变更同步更新 Roadmap 和 Change Log。
 - 每次文档变更应通过 Git commit 保留历史。
+
+
+## 10. PoC 云凭据配置
+
+SLS 与 CLS 使用独立环境变量文件：
+
+- 阿里云模板：`config/.env.aliyun.example` → 本地复制为根目录 `.env.aliyun`
+- 腾讯云模板：`config/.env.tencent.example` → 本地复制为根目录 `.env.tencent`
+
+```bash
+cp config/.env.aliyun.example .env.aliyun
+cp config/.env.tencent.example .env.tencent
+```
+
+在本地分别填写凭据和日志源信息。真实 `.env.aliyun` / `.env.tencent` 已由 `.gitignore` 忽略，不得提交。模板文件只包含空值。Adapter 应显式加载各自文件，不要让两个 Adapter 共用一个默认 `.env`。详细说明见 [日志接入设计](docs/07-api-design/log-ingestion-design.md#15-独立环境变量文件poc)。
