@@ -41,3 +41,26 @@ def test_filter_builder_quotes_values():
         {"action": "action"},
     )
     assert expression == '(action:"block\\" OR *")'
+
+
+
+def test_aliyun_filter_fields_follow_official_waf_schema():
+    from src.ingestion.adapters.aliyun_fields import ALIYUN_FILTER_FIELDS
+
+    assert ALIYUN_FILTER_FIELDS == {
+        "action": "final_action",
+        "source_ip": "real_client_ip",
+        "hostname": "host",
+        "attack_type": "final_rule_type",
+        "rule_id": "final_rule_id",
+        "http_method": "request_method",
+    }
+
+
+def test_aliyun_final_action_mapping_does_not_assume_allow():
+    from src.ingestion.adapters.aliyun_fields import normalize_final_action
+
+    assert normalize_final_action("block") == "block"
+    assert normalize_final_action("captcha") == "challenge"
+    assert normalize_final_action(None) == "unknown"
+    assert normalize_final_action("unexpected") == "unknown"
