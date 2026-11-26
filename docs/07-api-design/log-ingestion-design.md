@@ -1,8 +1,8 @@
 # WAF 日志接入设计（SLS / CLS）
 
-- 文档版本：1.0
+- 文档版本：1.1
 - 日期：2026-11-26
-- 状态：接口设计基线；具体 SDK/API 参数以 Phase 0 验证为准
+- 状态：Adapter 首版已实现；真实云账号联调和 WAF 字段映射仍待验证
 
 ## 1. 目标
 
@@ -284,7 +284,40 @@ ingestion:
 8. 只读 RAM/CAM 权限范围。
 
 
-## 15. 独立环境变量文件（PoC）
+## 15. Adapter 首版实现说明
+
+代码位置：
+
+- `src/ingestion/models.py`：QueryRequest、FetchPage、RawWAFRecord 和 UTC 时间校验。
+- `src/ingestion/adapters/base.py`：统一 Adapter 契约、游标编码/解码、内部异常类型和过滤表达式辅助函数。
+- `src/ingestion/adapters/aliyun_sls.py`：使用 `aliyun-log-python-sdk` 的 `LogClient` / `GetLogsRequest` 查询 SLS。
+- `src/ingestion/adapters/tencent_cls.py`：使用 `tencentcloud-sdk-python-cls` 的 `ClsClient.SearchLog` 查询 CLS。
+- `src/ingestion/config.py`：分别加载 `.env.aliyun` 和 `.env.tencent`。
+- `scripts/check_cloud_adapters.py`：真实云端连接与小批量查询 smoke test。
+- `tests/test_adapter_contract.py`：基础契约、时间和过滤输入测试。
+
+### 两家服务的分页差异
+
+| 平台 | 首版查询接口 | 分页实现 | 时间单位 |
+|---|---|---|---|
+| SLS | GetLogs | 内部 cursor 封装 offset；查询结果达到 page_size 时继续请求下一页 | Unix 秒 |
+| CLS | SearchLog | 内部 cursor 封装 CLS Context；遵循服务端 ListOver | Unix 毫秒 |
+
+CLS SearchLog 的 Context 仅适用于单 Topic 检索，且服务端对 Context 分页有结果数量和有效期限制；因此本 Adapter 固定单 Topic，并保持查询窗口/过滤条件不变，只替换 Context。SLS 的 offset 分页也应使用较小时间窗口，避免深分页造成额外查询开销。长时间范围由上层切分，不应一次拉取大量历史日志。
+
+### 当前实现边界
+
+- 首版只实现只读查询，不包含日志写入、WAF 策略修改或自动封禁。
+- `filters` 只接受代码中明确列出的字段白名单；不接受任意 DSL。当前字段映射是初始占位映射，需用脱敏真实 WAF 日志核对并按实际字段调整。
+- Adapter 返回 `RawWAFRecord`，暂不负责 PostgreSQL 持久化、Checkpoint 推进、自动重试调度或 fingerprint 计算。
+- SLS 当前用 offset 分页；CLS 使用服务端 Context。不要跨平台复用 cursor。
+- `health_check()` 以最近 5 分钟的有界查询验证访问；无日志时仍可视为连接成功，认证/权限异常返回 False。
+- 错误分类首版为基础映射，后续联调时需根据 SDK 实际异常码补齐 AuthenticationError、PermissionDenied、RateLimited 等精确分类。
+- 未提供真实凭据时不能验证实际权限、日志字段索引、查询成本和返回数据结构；通过 mock/契约测试不等于云端联调通过。
+
+依赖安装与运行方式见仓库根目录 README 的“本地运行 Adapter”章节。真实云端 smoke test 默认只查询最近 15 分钟、每次最多 5 条，不打印日志正文。
+
+## 16. 独立环境变量文件（PoC）
 
 阿里云 SLS 与腾讯云 CLS 使用独立环境变量文件，避免凭据混用：
 
