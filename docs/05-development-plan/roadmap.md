@@ -1,62 +1,243 @@
-# 开发路线图（Roadmap）
+# 项目总体计划与开发路线图（Project Plan & Roadmap）
 
-- 版本：1.1
+- 版本：2.0
 - 日期：2026-11-26
-- 原则：先验证日志 API 和真实样本，再实现统一采集；按 PoC 结果调整周期。
+- 状态：规划基线；各阶段须通过 Exit Criteria 后才能进入下一阶段
+- 计划原则：先定义产品和数据语义，再建设可复用平台能力；首期 WAF 聚焦，架构面向多厂商扩展。
 
-## 1. 阶段规划
+## 1. 总体路线
 
-| 阶段 | 目标 | 主要任务 | 交付物 |
+项目分为八个阶段。阶段表示能力成熟度，不等同于固定日历周期；每阶段工期应在需求、资源和数据源条件明确后估算。
+
+| 阶段 | 名称 | 目标 | 主要交付物 |
 |---|---|---|---|
-| Phase 0 | 数据源验证 | 确认 SLS/CLS Project、Logstore/Topic、字段、索引、权限、API 限额 | 脱敏样本、字段字典、API 验证记录 |
-| Phase 1A | Adapter 基础 | QueryRequest、FetchPage、BaseWAFAdapter、配置模型 | 统一接口与单元测试 |
-| Phase 1B | SLS Adapter | 认证、查询、过滤、分页、错误映射 | 可运行 AliyunSLSAdapter |
-| Phase 1C | CLS Adapter | 认证、查询、过滤、分页、错误映射 | 可运行 TencentCLSAdapter |
-| Phase 1D | 可靠采集 | 增量窗口、Checkpoint、重试、限速、去重、迟到日志 | Ingestion Service |
-| Phase 1E | 统一模型 | 字段映射、raw_event 保留、版本管理 | Normalized WAF Event |
-| Phase 2 | 检测与调查 API | 聚合、规则、事件查询和关联 | 基础安全事件服务 |
-| Phase 3 | AI 分析 | LangGraph 分诊、调查、证据化报告 | AI Investigation PoC |
-| Phase 4 | 运营闭环 | 审批接口、审计和只读/模拟响应 | 安全响应演示 |
-| Phase 5 | 平台化 | UI、部署、监控、压力与成本测试 | 端到端 PoC |
+| Phase 0 | 产品与需求规划 | 明确用户、场景、范围、指标和厂商策略 | Charter、PRD、场景清单、优先级、验收标准 |
+| Phase 1 | 数据源与能力验证 | 验证首批 WAF 数据源 API、日志类型、字段、成本和限制 | Vendor Capability Matrix、样本集、风险清单 |
+| Phase 2 | 多厂商接入基础 | 建立通用 Adapter 契约、能力声明、配置和可靠查询 | Provider Framework、阿里云/腾讯云连接器 |
+| Phase 3 | Schema 与标准化平台 | 自动画像、字段注册、版本管理和统一事件 | Schema Profiler、Field Registry、Normalizer、测试集 |
+| Phase 4 | 检测与关联分析 | 从原始日志形成安全发现和跨源关联 | Detection Rules、Correlation Engine、Event Service |
+| Phase 5 | AI 调查与报告 | 以证据驱动 Agent 完成分诊、调查和报告 | LangGraph Workflow、Tool Registry、Evaluation Set |
+| Phase 6 | SOC 工作台与运营闭环 | 让分析人员管理告警、案例、证据和任务 | API/UI、Case Management、Audit、Observability |
+| Phase 7 | 响应与企业化演进 | 在审批和策略控制下实现响应，评估生产部署 | Approval Gateway、Response Connectors、部署/容量方案 |
 
-## 2. Phase 0 任务清单
+## 2. 各阶段详细计划与退出标准
 
-- [ ] 确认阿里云 SLS Project、Logstore、Region 和查询权限。
-- [ ] 确认腾讯云 CLS Topic、Region 和查询权限。
-- [ ] 获取两家 WAF 各 100–500 条脱敏日志样本。
-- [ ] 整理两种日志的字段字典和时间字段。
-- [ ] 分别验证 API 查询、过滤、分页和时间范围边界。
-- [ ] 测量日志延迟、日均量、查询耗时和调用限制。
-- [ ] 确认运行环境和 PoC 预算。
+### Phase 0 — 产品与需求规划（当前优先）
 
-## 3. Phase 1 验收标准
+任务：
+- 明确主要用户、日常工作流和最重要的 3–5 个使用场景。
+- 明确首期产品边界：WAF 访问日志、安全事件日志、管理审计日志分别处理。
+- 明确核心对象：数据源、原始记录、标准事件、发现/告警、调查案例、证据、报告。
+- 确认首期仅阿里云 WAF/SLS 与腾讯云 WAF/CLS；其他厂商列入候选池，不提前承诺交付。
+- 定义成功指标、PoC 预算、运行环境、数据保留和模型数据政策。
+- 将已实现代码与计划需求分开标记，避免“代码已存在”被误认为“需求已验收”。
 
-- 两个 Adapter 遵循相同接口。
-- 可按明确的 start_time/end_time 查询。
-- 多页结果无遗漏；失败后可从安全位置恢复。
-- 限流/超时会退避重试，不无限重试。
-- Checkpoint 按数据源隔离，历史回溯不推进增量水位。
-- 使用重叠窗口补采迟到日志，并通过幂等键去重。
-- 原始字段保留，映射失败可追踪。
-- 输出查询耗时、条数、错误和成本相关指标。
+交付物：
+- Project Charter、Requirements/PRD、核心用户场景和业务流程。
+- 范围内/范围外清单、术语表、风险登记表。
+- MVP 验收指标和测试策略。
 
-## 4. 建议首批 GitHub Issues
+Exit Criteria：
+- 首期场景和范围经确认。
+- 每项 P0 需求有可验证验收条件。
+- 数据和模型安全边界明确。
+- 无影响架构的重大未决问题。
 
-1. 验证 SLS WAF 日志查询 API 与权限。
-2. 验证 CLS WAF 日志查询 API 与权限。
-3. 建立脱敏 WAF 日志样本与字段字典。
-4. 定义统一 QueryRequest / FetchPage / FetchResult。
-5. 实现 BaseWAFAdapter 与 HealthStatus。
-6. 实现 AliyunSLSAdapter。
-7. 实现 TencentCLSAdapter。
-8. 实现 PostgreSQL Checkpoint Repository。
-9. 实现增量窗口、重试、分页恢复与幂等去重。
-10. 建立标准化事件模型和契约测试。
+### Phase 1 — 数据源与能力验证
 
-## 5. 里程碑
+任务：
+- 分别确认阿里云 WAF 与腾讯云 WAF 的产品版本、日志类型、日志投递路径和权限。
+- 验证查询 API、时间过滤、分页、排序、过滤、聚合、回查和限流。
+- 采集受控脱敏样本，覆盖正常访问、规则命中、拦截、挑战、测试/观察模式、放行和异常场景（以实际可构造场景为准）。
+- 统计字段覆盖率、字段共现、类型、枚举和样本时间分布。
+- 记录查询成本、请求次数、延迟、数据量和日志延迟。
+- 建立 Vendor Capability Matrix，明确每个厂商能力支持/不支持/未验证。
 
-- M0：两端 API 均能只读查询真实脱敏日志。
-- M1：统一 Adapter 完成双云查询。
-- M2：增量采集与历史回溯可恢复、可审计。
-- M3：标准化事件可用于跨云检索与关联。
-- M4：LangGraph 能基于真实证据生成调查结果。
+交付物：
+- 每厂商日志类型清单、字段画像和语义证据。
+- API/SDK 验证报告和脱敏回归样本。
+- 查询成本与容量基线。
+- Vendor Capability Matrix。
+
+Exit Criteria：
+- 两个首期数据源的只读连接和关键查询路径验证完成。
+- 分页/时间窗口行为有可复现测试。
+- 关键字段语义有文档或样本证据；未知语义明确标记。
+- 查询预算和数据处理策略可执行。
+
+### Phase 2 — 多厂商接入基础
+
+任务：
+- 定义 Provider Adapter 统一接口和 Provider Capability 声明。
+- 统一数据源标识、凭据引用、连接健康、查询任务和错误模型。
+- 实现认证、时间过滤、过滤表达式转换、分页、限速、退避、超时和错误映射。
+- 实现独立 Checkpoint、历史回溯、断点恢复和幂等去重。
+- 明确查询与采集分离：按需调查查询不应意外推进增量 Checkpoint。
+- 为每个 Adapter 建立 mock contract tests 和脱敏集成测试。
+
+交付物：
+- Provider Framework 和 Capability Registry。
+- 阿里云 SLS、腾讯云 CLS Adapter 验收记录。
+- 可恢复查询/采集任务和运行指标。
+
+Exit Criteria：
+- 两个 Adapter 通过相同契约测试。
+- 不支持的能力明确返回 capability limitation。
+- 失败恢复、重复数据和迟到日志处理符合设计。
+- API 凭据与数据源配置隔离且无敏感信息泄漏。
+
+### Phase 3 — Schema 与标准化平台
+
+任务：
+- 建立厂商无关的 Schema Profiler，支持嵌套字段、类型、覆盖率、枚举、字段共现和 Schema Drift。
+- 建立 Field Registry：按 provider/product/log_type/schema_version 管理字段定义。
+- 对字段记录 documented、observed、inferred、unknown 等语义状态及证据来源。
+- 定义字段敏感级别、脱敏规则和 LLM 可见性。
+- 定义统一安全事件核心模型、Vendor Extension 和 Provenance。
+- 实现可版本化 Normalizer、映射质量报告和回归测试。
+- 动作语义必须拆分检测命中、模块动作、最终动作、测试模式和实际效果；未知值不推断。
+
+交付物：
+- Schema Profile、Field Registry 和变更审查流程。
+- Normalized Security Event Schema。
+- 两家首期厂商映射包和自动化测试集。
+
+Exit Criteria：
+- 关键字段映射可解释、可追踪、可回归。
+- 新字段/类型变化能被发现，未经审查不自动改变语义。
+- 原始证据和厂商扩展字段不丢失。
+- 新增厂商不需要修改通用画像引擎和事件核心结构。
+
+### Phase 4 — 检测与关联分析
+
+任务：
+- 建立规则检测框架：阈值、频率、Top-N、异常趋势、已知规则命中等。
+- 区分日志、检测发现、告警和案例，不将每条访问日志都视为告警。
+- 建立实体模型：IP、域名、URL/路径、规则、请求标识、账号/租户等。
+- 建立时间窗口和实体关联策略，控制误关联。
+- 对告警进行去重、聚合、优先级建议和证据打包。
+- 通过历史样本构建基础检测评估集。
+
+交付物：
+- Detection Rule Framework。
+- Correlation Engine。
+- Event/Alert API 和可解释证据包。
+
+Exit Criteria：
+- 核心场景可从日志产生可追踪发现。
+- 每个告警包含来源、时间、规则/逻辑、证据和置信度。
+- 有基础误报评估结果。
+- 不同厂商同义事件可以使用统一检测逻辑。
+
+### Phase 5 — AI 调查与报告
+
+任务：
+- 定义 LangGraph 状态、节点、边界和失败恢复。
+- 建立受控工具：事件检索、源端日志回查、统计聚合、情报查询（如获批准）。
+- 工作流：告警分诊 → 调查计划 → 证据检索 → 时间线 → 假设验证 → 报告。
+- 输出结构化结论、证据引用、置信度、不确定性和建议。
+- 建立 Prompt Injection 防护、上下文裁剪、脱敏和 Token 预算。
+- 建立评估集，比较无 Agent/规则分析与 Agent 辅助分析的效果。
+
+交付物：
+- LangGraph Investigation Workflow。
+- Tool Registry 和 JSON Schema。
+- 结构化调查报告。
+- Agent Evaluation Dataset 与评估报告。
+
+Exit Criteria：
+- 结论可追溯到具体事件/查询证据。
+- 不允许模型编造字段、规则、来源或工具结果。
+- 日志中的不可信文本不能改变工具权限或系统指令。
+- Agent 在成本、时延和准确性方面达到 PoC 设定目标。
+
+### Phase 6 — SOC 工作台与运营闭环
+
+任务：
+- 提供数据源状态、采集状态、Schema 变化、事件/告警列表。
+- 提供事件详情、调查时间线、证据、报告和人工反馈。
+- 建立案例状态、负责人、备注、处理记录和审计。
+- 提供查询、Agent 运行、错误、成本和系统健康监控。
+- 完善用户认证、角色权限和数据访问隔离（按部署场景确定）。
+
+交付物：
+- FastAPI 稳定接口。
+- 最小 React SOC 工作台。
+- Case Management、Audit 和 Observability。
+
+Exit Criteria：
+- 分析人员能完成从告警到调查报告的基本流程。
+- 查询和 Agent 运行均可审计。
+- 系统运行状态、错误和成本可观察。
+
+### Phase 7 — 响应与企业化演进
+
+任务：
+- 定义响应动作目录、风险等级、策略校验和审批流程。
+- 每个响应连接器独立处理权限、幂等、TTL、回滚和执行结果核验。
+- 默认 Dry-run；人工批准后才能执行写操作。
+- 评估多租户、HA、备份恢复、密钥管理、升级和灾备。
+- 根据实际规模评估 Kafka、OpenSearch/ClickHouse、Redis、Kubernetes 等组件，必须有容量数据支撑。
+
+交付物：
+- Response Gateway 与厂商响应连接器。
+- 审批、执行、回滚和审计记录。
+- 企业部署与容量规划。
+
+Exit Criteria：
+- 未经批准无法执行写操作。
+- 响应有 TTL、回滚路径和结果验证。
+- 部署、安全和容量测试通过。
+
+## 3. 首期 MVP 建议边界
+
+首期 MVP 不等于完整 SOC。建议只交付：
+1. 两家 WAF 数据源只读接入。
+2. Schema Discovery + Field Registry 的最小可用流程。
+3. 统一 WAF Security Event。
+4. 3–5 个有代表性的检测/调查场景。
+5. LangGraph 告警分诊、证据收集和调查报告。
+6. 最小 API/页面或可演示工作流。
+7. 成本、审计和安全边界。
+
+明确暂缓：通用 SOAR、复杂多租户、全量 SIEM 功能、全厂商覆盖、无审批自动响应。
+
+## 4. 建议优先验证的业务场景
+
+| 场景 ID | 场景 | 主要能力 | MVP 优先级 |
+|---|---|---|---|
+| UC-01 | 单条 WAF 安全事件研判 | 动作语义、规则、请求上下文、风险说明 | P0 |
+| UC-02 | 同一来源 IP 高频攻击调查 | 时间窗口、IP 关联、Top-N、源端回查 | P0 |
+| UC-03 | 多域名/多站点攻击关联 | Host、IP、路径和时间线关联 | P1 |
+| UC-04 | 跨云相似攻击关联 | 多厂商事件标准化、实体/时间关联 | P1 |
+| UC-05 | Bot/扫描/暴力尝试趋势分析 | 模块语义、频率和行为统计 | P1 |
+| UC-06 | AI 自动生成调查报告 | 证据引用、假设、不确定性和建议 | P0 |
+| UC-07 | 多阶段攻击活动关联 | 多类安全源、情报和案例图谱 | P2 |
+
+## 5. 关键依赖关系
+
+- Phase 0 决定场景和验收标准，是后续工作输入。
+- Phase 1 提供真实数据、字段语义和 API 限制，是 Phase 2/3 的依据。
+- Phase 2 提供可靠数据接入，是 Schema/检测的基础。
+- Phase 3 的统一事件模型是 Phase 4/5 的共同输入。
+- Phase 4 先提供确定性发现和证据，Phase 5 才有可靠的 Agent 调查对象。
+- Phase 6 将能力产品化；Phase 7 依赖成熟的权限、审计和运营流程。
+
+## 6. 计划管理规则
+
+- 每个阶段先建立 Epic，再拆分可验收的 Issue。
+- Issue 必须包含背景、范围、依赖、验收标准、测试方式和安全/成本影响。
+- 未验证的 API/字段语义标记为 Unknown 或 Proposed，不写成事实。
+- 每个厂商新增时复用统一模板：Vendor Profile、Capability Matrix、Sample Set、Field Registry、Adapter Contract Tests、Normalizer Tests。
+- 阶段退出必须有验收记录；代码合并不等于阶段验收。
+- 计划变更记录在 Decision Log / Change Log；重大架构变化使用 ADR。
+
+## 7. 当前执行重点
+
+当前优先完成 Phase 0 规划，不立即扩展代码：
+1. 确认首期 3–5 个核心安全运营场景。
+2. 确认 WAF 日志类型和模块边界。
+3. 完成数据源能力矩阵和字段语义治理方案。
+4. 定义 MVP 事件、告警、案例和报告对象。
+5. 定义验收指标、测试数据集和成本预算。
+6. 规划通过后再进入下一轮实现。
