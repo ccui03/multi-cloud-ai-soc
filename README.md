@@ -209,7 +209,7 @@ repository = StorageRepository(database.session_factory)
 - 计划变更同步更新 Roadmap 和 Change Log。
 - 每次文档变更应通过 Git commit 保留历史。
 
-## 11. PoC 云凭据配置
+## 12. PoC 云凭据配置
 
 SLS 与 CLS 使用独立环境变量文件：
 
