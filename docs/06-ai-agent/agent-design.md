@@ -111,3 +111,37 @@ Agent 不允许：
 ## 8. 后续响应能力
 
 响应规划与响应执行分离。执行阶段必须经过独立策略层、权限校验、人工审批、TTL、回滚和结果核验。首期 Agent 仅输出建议，不执行云端写操作。
+
+
+---
+
+## 9. 分层研判 Agent 工作流（v2.1 补充）
+
+### 9.1 工作对象
+Agent 默认输入是 Alert Group 或 Security Incident 的 Evidence Pack，而不是原始日志流。单条日志仅在需要验证假设时按需下钻。
+
+### 9.2 推荐工作流
+1. Intake：读取事件候选、聚合统计和上下文，检查数据范围。
+2. Evidence Validation：验证证据引用、字段语义状态和时间范围；缺口必须标记。
+3. Triage：给出初步风险和优先级，不把初步结论当最终判断。
+4. Investigation Planning：列出待验证假设、所需证据和最小查询范围。
+5. Evidence Retrieval：通过受控只读工具查询标准事件、源端聚合或少量原始样本。
+6. Hypothesis Testing：同时寻找支持证据和反证，检查正常业务解释、代理/NAT 共享来源、测试模式等替代假设。
+7. Verdict：输出分层结论、置信度、严重性、影响范围和未知项。
+8. Recommendation Draft：仅在证据支持时生成 WAF 策略优化建议，说明范围、误放风险、验证和回滚考虑。
+9. Human Review：安全人员确认/修正研判与建议；人工执行不由 Agent 发起。
+10. Feedback Capture：记录最终分类、建议是否采纳、人工执行结果和后续观察结果。
+
+### 9.3 结论与置信度
+verdict：confirmed_malicious、likely_malicious、likely_legitimate、confirmed_legitimate、inconclusive。Severity 表示潜在影响，Confidence 表示证据对结论的支持程度，两者必须分开。输出必须区分 observation、inference 和 unknown。高严重性但低置信度的事件仍可能需要优先人工调查。
+
+### 9.4 反误报与证据要求
+- “正常业务”判断必须有正向依据，不能仅因未发现攻击证据就判定正常。
+- 检查与结论相反的合理假设；证据矛盾时降低置信度或输出 inconclusive。
+- 不能仅凭 IP 相同合并攻击活动。
+- WAF 命中、WAF 拦截、HTTP 响应码和后端实际受影响是不同事实。
+- 放宽规则建议必须说明规则/路径/参数范围、样本和统计依据，以及可能的绕过风险。
+- 不得把有限样本或抽样结果表述为全部流量的完整事实。
+
+### 9.5 人工反馈闭环
+记录原 AI verdict/severity/confidence、人工最终 verdict 和理由、建议接受/拒绝/修改状态、外部变更单引用、人工执行人/时间、变更后观察窗口及效果判断。反馈用于离线评估、阈值调优和提示模板改进；未经评估与审批，不得把单次反馈直接转为生产检测规则或训练标签。
