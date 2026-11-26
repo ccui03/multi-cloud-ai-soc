@@ -1,9 +1,9 @@
 # 项目执行计划（Project Execution Plan）
 
-- 版本：1.0
+- 版本：1.1
 - 日期：2026-11-26
 - 仓库：`ccui03/multi-cloud-ai-soc`
-- 状态：执行规划基线，尚未代表 GitHub Milestones / Projects 已创建
+- 状态：执行规划基线；阶段主跟踪 Issues 已创建，GitHub Milestones / Projects Board 尚未创建
 - 原则：当前先完善规划与任务拆解；除非用户明确确认恢复开发，否则不启动新一轮代码实现。
 
 ## 1. 执行管理方式
@@ -335,3 +335,75 @@ M0/M1 未通过前，不应因为某个代码模块已经存在就跳过设计�
 本文件定义了建议的 Milestone、Issue 和 Project Board 内容。GitHub 仓库文档更新不等于 GitHub Projects Board 或 Milestones 已自动创建；需在 GitHub 网页端按本文件建立对应对象，并将 Issues 关联到 Milestones/Project。
 
 建议先建立 M0–M7 八个 Milestones，再按每个 Milestone 的 Issue 清单创建任务。不要一次性把所有开发任务设为 Ready；只有范围、依赖和验收条件已明确的工作才进入 Ready。当前阶段先处理 M0 规划评审和 M1 数据源能力验证。
+
+
+---
+
+## 8. 按步骤执行与进度跟踪（执行版）
+
+本节是项目日常执行入口。每个 Milestone 按编号顺序推进；如果某一步依赖尚未满足，应标记 Blocked，不要跳过验收直接进入下一阶段。
+
+### 8.1 八个 Milestone 的 GitHub 跟踪入口
+
+| Milestone | 主跟踪 Issue | 前置条件 |
+|---|---|---|
+| M0 规划与设计基线 | [Issue #1](https://github.com/ccui03/multi-cloud-ai-soc/issues/1) | 无 |
+| M1 首期数据源验证 | [Issue #2 阿里云](https://github.com/ccui03/multi-cloud-ai-soc/issues/2)、[Issue #3 腾讯云](https://github.com/ccui03/multi-cloud-ai-soc/issues/3) | M0 通过 |
+| M2 多云接入与统一事件 | [Issue #4](https://github.com/ccui03/multi-cloud-ai-soc/issues/4) | M0、M1 通过 |
+| M3 预筛选与行为聚合 | [Issue #5](https://github.com/ccui03/multi-cloud-ai-soc/issues/5) | M2 通过 |
+| M4 Evidence Pack | [Issue #6](https://github.com/ccui03/multi-cloud-ai-soc/issues/6) | M3 通过 |
+| M5 AI 研判引擎 | [Issue #7](https://github.com/ccui03/multi-cloud-ai-soc/issues/7) | M4 通过 |
+| M6 分析任务与 MVP UI | [Issue #8](https://github.com/ccui03/multi-cloud-ai-soc/issues/8) | M2–M5 具备可集成接口 |
+| M7 PoC 验收与优化 | [Issue #9](https://github.com/ccui03/multi-cloud-ai-soc/issues/9) | M2–M6 集成完成 |
+
+说明：以上 Issue 是每个阶段的主跟踪项，内部 checklist 用于追踪具体步骤。若某个步骤工作量较大、需要独立负责人或独立验收，再从主 Issue 拆分子 Issue。
+
+### 8.2 每个阶段统一执行流程
+
+1. **进入阶段前**：检查前置 Milestone 是否通过；确认输入资料、访问权限、样本和预算可用。
+2. **拆解任务**：将主 Issue checklist 中的步骤逐项确认；较大的步骤拆成独立 Issue。
+3. **开始工作**：只有目标、输入、验收标准和依赖明确的事项才设为 Ready / In Progress。
+4. **过程记录**：每完成一个步骤，在 Issue 中勾选 checklist，并附上文档、测试结果、截图或报告链接。
+5. **阶段评审**：对照本阶段 Exit Criteria 逐项验证；未通过项保留 Open 或标记 Blocked。
+6. **关闭阶段**：全部验收项通过、交付物已归档、风险已记录后，才关闭主 Issue 和对应 Milestone。
+7. **进入下一阶段**：更新 Roadmap / Decision Log，并确认下一阶段范围与依赖。
+
+### 8.3 进度计算规则
+
+- **步骤完成率** = 已完成 checklist 项数 ÷ checklist 总项数。
+- **阶段完成率** = 阶段主 Issue 及其子 Issue 中已完成任务数 ÷ 任务总数。
+- checklist 完成率仅表示任务执行进度，不代表质量验收通过。
+- **Milestone 只有在 Exit Criteria 全部通过后才算完成**；不能仅凭百分比关闭。
+- Blocked 任务仍计入未完成任务，并记录阻塞原因、所需决策和解除条件。
+- 不建议以提交代码行数、Commit 数或 Issue 数作为项目完成度指标。
+
+### 8.4 每周项目检查清单
+
+每周进行一次轻量检查；开发阶段可根据任务密度提高频率。
+
+- [ ] 更新所有进行中 Issue 的状态和 checklist。
+- [ ] 检查是否存在超过一周无进展的 In Progress 项。
+- [ ] 检查 Blocked 项的原因、责任人和下一步。
+- [ ] 检查本阶段交付物是否有可访问链接和测试证据。
+- [ ] 检查查询费用、模型 Token、任务失败率和数据质量是否异常。
+- [ ] 检查范围变更是否需要更新 Requirements、Architecture 或 Decision Log。
+- [ ] 确认下一周最多 1–3 个最高优先级工作项，避免同时铺开太多工作。
+
+### 8.5 建议的项目看板使用方式
+
+- Board 按 Status 分组，日常更新任务。
+- Roadmap 按 Milestone 分组，观察阶段顺序和阻塞关系。
+- Table 用于按 Priority、Area、Estimate 筛选。
+- 每个 Issue 至少填写 Milestone、Priority、Area、Work Type；Estimate 在任务范围明确后填写。
+- 初始只把 M0 评审和 M1 数据源验证放入 Ready；M2–M7 保持 Backlog，待前置条件满足再逐步推进。
+
+### 8.6 当前项目启动顺序
+
+当前阶段不以开发代码为第一目标，先完成规划和数据源验证：
+
+1. 处理 Issue #1：评审并确认 MVP 范围、P0 场景、数据对象、安全边界和验收指标。
+2. 处理 Issue #2：完成阿里云 WAF/SLS 字段语义、样本、查询能力和成本验证。
+3. 处理 Issue #3：完成腾讯云 WAF/CLS 对应验证，形成与阿里云的差异矩阵。
+4. M0 和 M1 通过 Exit Criteria 后，才将 Issue #4 移入 Ready。
+5. M2 完成后再推进 M3，后续按依赖链逐阶段推进；M6 的任务/界面设计可提前细化，但集成验收依赖 M2–M5。
+
