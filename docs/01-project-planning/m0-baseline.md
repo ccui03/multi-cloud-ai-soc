@@ -310,15 +310,17 @@ Accuracy 不作为唯一指标；类别不平衡时报告 Precision、Recall、F
 
 以下全部满足才可关闭 M0：
 
-- [ ] 项目负责人确认 MVP 范围和明确不做事项。
-- [ ] 项目负责人确认 P0 场景及其最低验收要求。
-- [ ] Normalized Event、Detection Signal、Alert Group、Incident Candidate、Evidence Pack、Analysis Task 的边界明确。
-- [ ] 手动/定时统一任务流程、状态机、Checkpoint 和幂等原则明确。
-- [ ] 五级 Verdict、严重性、置信度、证据/反证/未知项结构明确。
-- [ ] 凭据、只读工具、后端授权、脱敏、Prompt Injection 和审计边界明确。
-- [ ] 测试集构建方法、分层指标和对照实验明确。
-- [ ] 查询/模型预算的配置机制和“预算未设定则定时任务关闭”的规则明确。
-- [ ] 未决事项和复核条件记录到 Decision Log。
+- [x] 项目负责人确认 MVP 范围和明确不做事项。
+- [x] 项目负责人确认 P0 场景及其最低验收要求。
+- [x] Normalized Event、Detection Signal、Alert Group、Incident Candidate、Evidence Pack、Analysis Task 的边界明确。
+- [x] 手动/定时统一任务流程、状态机、Checkpoint 和幂等原则明确。
+- [x] 五级 Verdict、严重性、置信度、证据/反证/未知项结构明确。
+- [x] 凭据、只读工具、后端授权、脱敏、Prompt Injection 和审计边界明确。
+- [x] 测试集构建方法、分层指标和对照实验明确。
+- [x] 查询/模型预算的配置机制和“预算未设定则定时任务关闭”的规则明确。
+- [x] 未决事项和复核条件记录到 Decision Log。
+
+**M0 评审结果（2026-11-26）：通过。** 项目负责人已明确确认 MVP 产品范围、五个 P0 场景、Incident Candidate 与 Security Incident 边界、预算门禁；DEC-017、DEC-018、DEC-019 已更新为 Accepted。M0 仅确认规划和设计基线，不代表 M1 的 SLS/CLS 真实数据源验证已通过，也不代表 M0 之外的实现能力已经交付。
 
 ## 10. M0 未决事项与后续阶段
 
