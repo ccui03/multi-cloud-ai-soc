@@ -124,20 +124,28 @@ class TencentCLSAdapter(BaseWAFAdapter):
             for item in results:
                 raw = self._model_to_dict(item)
                 content = raw.get("Content")
+                provider_meta = {k: v for k, v in raw.items() if k != "Content"}
                 if isinstance(content, str):
                     try:
                         parsed = json.loads(content)
                         if isinstance(parsed, dict):
-                            raw = {**parsed, "_cls": {k: v for k, v in raw.items() if k != "Content"}}
+                            raw = {**parsed, "_cls": provider_meta}
                     except json.JSONDecodeError:
                         pass
-                event_time = self.parse_time(raw.get("Time") or raw.get("@timestamp") or raw.get("__time__"))
+                event_time = self.parse_time(
+                    provider_meta.get("Time")
+                    or raw.get("@timestamp")
+                    or raw.get("__time__")
+                )
+                pkg_id = provider_meta.get("PkgId")
+                pkg_log_id = provider_meta.get("PkgLogId")
+                source_record_id = f"{pkg_id}:{pkg_log_id}" if pkg_id is not None and pkg_log_id is not None else None
                 records.append(RawWAFRecord(
                     provider=self.provider,
                     source_id=request.source_id,
                     event_time=event_time,
                     raw=raw,
-                    source_record_id=str(raw.get("PkgId", "")) or None,
+                    source_record_id=source_record_id,
                 ))
             next_context = getattr(response, "Context", None) or ""
             list_over = bool(getattr(response, "ListOver", True))
