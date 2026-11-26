@@ -26,6 +26,11 @@ SAFE_ENUM_FIELDS = (
     "https",
     "server_protocol",
     "ssl_protocol",
+    "final_action",
+    "final_plugin",
+    "scene_action",
+    "scene_rule_type",
+    "scene_test",
     "bypass_matched_ids",
 )
 MAX_ENUM_VALUES = 10
