@@ -282,3 +282,46 @@ ingestion:
 6. 字段索引要求与查询成本。
 7. WAF 日志的 action、attack type、rule、source IP 等真实字段。
 8. 只读 RAM/CAM 权限范围。
+
+
+## 15. 独立环境变量文件（PoC）
+
+阿里云 SLS 与腾讯云 CLS 使用独立环境变量文件，避免凭据混用：
+
+- 阿里云模板：`config/.env.aliyun.example`
+- 腾讯云模板：`config/.env.tencent.example`
+- 本地实际配置：仓库根目录的 `.env.aliyun` 和 `.env.tencent`（不提交 Git）
+
+首次准备：
+
+```bash
+cp config/.env.aliyun.example .env.aliyun
+cp config/.env.tencent.example .env.tencent
+```
+
+分别编辑两个本地文件，填入各自云账号的只读凭据、Endpoint、Region 和日志源标识。模板只包含空值，不得填写真实密钥后提交。
+
+Python 使用 `python-dotenv` 时应显式指定文件路径，避免两个 Adapter 意外读取同一个默认 `.env`：
+
+```python
+import os
+from pathlib import Path
+from dotenv import dotenv_values
+
+ROOT = Path(__file__).resolve().parents[3]
+aliyun_config = dotenv_values(ROOT / ".env.aliyun")
+tencent_config = dotenv_values(ROOT / ".env.tencent")
+
+# 将配置显式传入对应 Adapter；不要把 Secret 写入日志或异常信息。
+```
+
+建议依赖：`python-dotenv`。生产环境优先使用部署平台 Secret/密钥管理服务，不应依赖把真实 .env 文件打包进镜像。
+
+### 安全检查
+
+- `.gitignore` 忽略 `.env` 和所有 `.env.*`，仅放行名称以 `.example` 结尾的模板文件。
+- 本地真实文件名固定为 `.env.aliyun`、`.env.tencent`，不要使用模板文件名存放真实凭据。
+- 两个云账号分别创建最小权限 RAM/CAM 身份，仅允许查询目标 SLS Project/Logstore 或 CLS Topic。
+- 不要将密钥放入 README、YAML、Dockerfile、命令行参数、Issue 或截图。
+- 如果真实密钥曾经提交到 Git，即使随后删除文件，也应立即在云平台轮换/吊销密钥；Git 历史仍可能保留旧值。
+- 提交前运行 `git status --short`，确认真实 .env 文件未被跟踪；可用 `git check-ignore -v .env.aliyun .env.tencent` 检查忽略规则。
