@@ -12,7 +12,7 @@ from typing import Any
 from src.ingestion.adapters import AliyunSLSAdapter, TencentCLSAdapter
 from src.ingestion.config import load_aliyun_config, load_tencent_config
 from src.ingestion.models import QueryRequest
-from src.ingestion.adapters.aliyun_fields import ALIYUN_ALIYUN_SAFE_ENUM_FIELDS
+from src.ingestion.adapters.aliyun_fields import ALIYUN_SAFE_ENUM_FIELDS
 
 
 SENSITIVE_KEY_PARTS = (
