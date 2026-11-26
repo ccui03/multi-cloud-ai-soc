@@ -1,67 +1,97 @@
 # Multi-Cloud AI SOC
 
-面向多云环境的 AI 驱动安全运营平台，重点围绕云 WAF 安全日志接入、告警分析、攻击调查、威胁情报关联、事件管理与自动化响应。
+面向多云环境的 AI 驱动安全运营平台。首期聚焦阿里云 WAF（SLS）与腾讯云 WAF（CLS），通过源端查询、轻量 Python Adapter 和 LangGraph 工作流，实现安全日志统一分析、攻击调查与报告生成。
 
-> 项目状态：规划与 PoC 准备阶段  
-> 当前版本：Project Baseline v1.0  
+> 项目状态：PoC 设计与准备阶段  
+> 当前文档版本：Project Baseline v1.1  
+> 更新时间：2026-11-26  
 > 文档语言：中文（技术名词保留英文）
 
-## 1. 项目愿景
+## 1. 已确认的项目约束
 
-建设一个可扩展、可审计、支持人工审批的多云 AI SOC 平台，将不同云厂商和安全产品的日志统一接入，通过检测规则与 AI Agent 协同完成安全事件分析和响应。
+| 项目 | 当前决定 |
+|---|---|
+| 首期数据源 | 阿里云 WAF → SLS；腾讯云 WAF → CLS |
+| SIEM | 不复用 QRadar；PoC 不单独部署传统 SIEM |
+| 日志获取 | 通过 SLS / CLS API 查询，不全量搬迁原始日志 |
+| 分析位置 | 优先在 SLS / CLS 过滤、查询和聚合；AI SOC 负责跨云分析 |
+| 部署规模 | 小规模、低成本 PoC |
+| 初期部署 | Docker Compose / 单机容器优先 |
+| 响应能力 | 首期以只读分析和处置建议为主；写操作默认关闭或人工审批 |
 
-## 2. 初期目标
+## 2. 项目目标
 
-1. 接入至少一种云 WAF 日志源，验证采集、解析、标准化和检索链路。
-2. 建立统一安全事件模型，保留原始日志和厂商原始字段。
-3. 实现告警归并、初步风险评分和攻击上下文调查。
-4. 使用 LangGraph 编排受控的 AI Agent 工作流。
-5. 生成可追溯的事件分析报告。
-6. 建立人工审批、操作审计和安全响应边界。
+1. 统一查询阿里云 SLS 与腾讯云 CLS 中的 WAF 日志。
+2. 建立厂商隔离的 Python Adapter 接口。
+3. 支持增量采集、历史回溯、分页、重试、Checkpoint 和幂等去重。
+4. 建立统一安全事件模型，同时保留原始厂商字段。
+5. 使用确定性查询、聚合和规则筛选日志，避免把海量原始日志直接发送给 LLM。
+6. 使用 LangGraph 实现告警分诊、攻击调查和报告生成。
+7. 保留证据、分析过程和操作审计。
 
-## 3. 初期范围
+## 3. 首期范围
 
 ### In scope
-- 多云 WAF 日志接入适配器（按 PoC 优先级逐步增加）
-- 日志标准化、检索和基础检测
-- 告警分析与事件调查 Agent
-- 威胁情报查询接口
-- 事件报告
-- 经审批的响应动作 PoC
+- 阿里云 SLS 与腾讯云 CLS 的只读日志查询 Adapter
+- 源端时间过滤、关键词/条件过滤和聚合查询（以实际服务能力验证为准）
+- 按时间窗口增量查询和按需历史回溯
+- 统一事件字段映射、原始事件保留
+- PostgreSQL 保存 Checkpoint、标准化事件、分析结果和审计元数据
+- LangGraph 安全分析 PoC
+- Docker Compose 本地/单机部署
 
-### Out of scope（初期暂不做）
-- 取代现有企业 SIEM
-- 无审批的高风险自动封禁
-- 覆盖所有云厂商和所有安全产品
-- 将原始海量日志直接提交给 LLM
-- 面向公网的多租户 SaaS 商业化能力
+### Out of scope（首期）
+- QRadar 集成或替换
+- Kafka、OpenSearch、TheHive、Shuffle 等额外基础设施的强制部署
+- 将全部原始 WAF 日志复制到 AI SOC
+- 无审批的自动封禁或 WAF 策略修改
+- 多云全面覆盖和生产级高可用
+- 面向公网的多租户 SaaS
 
-## 4. 初步技术候选
+## 4. 初步技术基线
 
-| 层次 | 候选技术 | 说明 |
+| 层次 | 首期方案 | 备注 |
 |---|---|---|
-| 云日志接入 | Python adapters、厂商日志 API/消息服务 | 先验证实际可用的日志出口 |
-| 消息管道 | Kafka | PoC 阶段可评估是否先用轻量队列 |
-| 统一事件模型 | OCSF（候选） | 保留原始字段，映射需通过样例验证 |
-| 搜索分析 | OpenSearch | 日志检索、聚合和告警上下文 |
-| SIEM | 现有 SIEM / OpenSearch Security Analytics | 先评估复用现有能力 |
-| Agent 编排 | LangGraph | 工作流、状态管理和人工介入 |
-| 后端 API | Python + FastAPI | 平台 API 与工具服务 |
-| 事件管理 | TheHive（候选） | PoC 验证后决定是否引入 |
-| 威胁情报 | MISP（候选） | 可先接入外部情报查询 API |
-| SOAR | Shuffle（候选） | 与事件管理工作流避免重复 |
-| 数据库 | PostgreSQL + Redis | 业务数据与缓存/短期状态 |
-| 前端 | React | 告警、事件和调查结果界面 |
-| 部署 | Docker，后续评估 Kubernetes | 先保证本地可复现 |
+| 云日志源 | Alibaba Cloud SLS / Tencent Cloud CLS | 原始日志留在源端 |
+| 数据接入 | Python Adapter + 官方 SDK/API | 分别封装厂商查询差异 |
+| 查询调度 | Python 定时任务/后台任务 | 初期不引入 Kafka |
+| 统一事件模型 | 自定义轻量模型，参考 OCSF | 保留 raw_event 与 schema_version |
+| 业务存储 | PostgreSQL + JSONB | Checkpoint、事件、分析结果 |
+| API | Python + FastAPI | 数据源、查询、事件和分析接口 |
+| Agent | LangGraph | 只通过受控只读工具访问日志 |
+| 前端 | React（后续阶段） | PoC 可先用 API/简单页面验证 |
+| 部署 | Docker Compose | 低资源单机 PoC |
 
-以上均为候选，不代表最终选型。最终决定必须记录在 ADR 中。
+OpenSearch、Kafka、Redis、TheHive、MISP、Shuffle 均作为后续候选，只有出现明确容量或功能需求时再引入。
 
-## 5. 仓库结构
+## 5. 推荐数据流
+
+```text
+Alibaba WAF -> SLS -----> AliyunSLSAdapter --+
+                                             |
+                                             +--> Ingestion Service
+                                             |       |
+Tencent WAF -> CLS ----> TencentCLSAdapter -+       v
+                                               Normalize / Deduplicate
+                                                       |
+                                      +----------------+----------------+
+                                      |                                 |
+                               PostgreSQL                     Query back to SLS/CLS
+                         (checkpoint/events/results)          (investigation context)
+                                      |
+                                      v
+                              FastAPI / LangGraph
+                                      |
+                          Triage / Investigation / Report
+```
+
+AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间范围、字段条件和聚合查询；将命中事件、必要上下文和聚合结果送入统一分析流程。调查时再按 IP、域名、URI、规则和时间范围回查源日志。
+
+## 6. 仓库结构
 
 ```text
 .
 ├── README.md
-├── .gitignore
 ├── docs/
 │   ├── 01-project-planning/
 │   ├── 02-requirements/
@@ -73,41 +103,42 @@
 │   ├── 08-deployment/
 │   └── 09-records/
 ├── src/
+│   ├── ingestion/
+│   ├── api/
+│   └── agents/
 ├── tests/
 ├── config/
 └── docker/
 ```
 
-## 6. 开发原则
+## 7. 开发与安全原则
 
-- **先验证数据，再设计 Agent：** 先取得真实脱敏日志样本，确认字段、吞吐、延迟和 API 权限。
-- **规则与 AI 协同：** 确定性检测和聚合先做，LLM 负责解释、关联和辅助决策。
-- **最小权限：** Agent 不持有云平台管理员凭据；工具按只读、建议、执行分权。
-- **人工审批：** 封禁 IP、修改 WAF 策略等动作默认需要审批。
-- **可审计：** 记录输入证据、模型结论、工具调用、审批人和执行结果。
-- **安全处理日志：** 日志中的 URL、User-Agent、请求参数等均视为不可信数据，不得作为 Agent 指令。
-- **可替换：** 云厂商适配器、LLM、搜索引擎和响应执行器尽量解耦。
+- 源端优先：尽量在 SLS / CLS 查询端过滤和聚合，避免无差别下载。
+- 游标/时间窗口：记录每个数据源独立的 Checkpoint；使用重叠窗口容忍延迟日志。
+- 幂等处理：至少一次读取，依靠稳定事件键/哈希去重；不要假设 API 返回天然 exactly-once。
+- 规则优先：先过滤、聚合和关联，再让 LLM 分析有限上下文。
+- 最小权限：云凭据只授予目标 Project/Logstore 或 Topic 的只读查询权限。
+- 日志不可信：URL、User-Agent、Header、请求参数都视为不可信数据，不得作为 Agent 指令。
+- 人工审批：首期不执行自动封禁；写操作必须经过策略校验和人工批准。
+- 可审计：记录查询范围、过滤条件、数据源、事件证据、模型输出和审批/执行结果。
+- 不提交密钥、Token、真实客户数据或未脱敏日志。
 
-## 7. 项目阶段
+## 8. 项目阶段
 
 | 阶段 | 目标 | 主要交付物 |
 |---|---|---|
-| 0. 项目基线 | 明确范围、约束和 PoC 场景 | 项目章程、需求、架构草案 |
-| 1. 数据接入 PoC | 打通一个 WAF 数据源 | Adapter、样例数据、解析与检索 |
-| 2. 检测与事件 | 建立规则、归并和事件模型 | 检测规则、事件 API |
-| 3. AI 调查 | 构建受控 Agent 工作流 | LangGraph 流程、调查报告 |
-| 4. 情报与响应 | 情报查询、审批和响应 PoC | 工具接口、审批记录、审计 |
-| 5. 平台化 | 前端、部署、监控和测试 | 可部署的端到端版本 |
+| Phase 0 | 需求和数据源确认 | 样例日志、权限清单、查询验证 |
+| Phase 1 | SLS / CLS Adapter | 统一接口、分页、Checkpoint、测试 |
+| Phase 2 | 事件标准化与检测 | 统一模型、去重、聚合与查询 |
+| Phase 3 | AI 调查 | LangGraph 工作流、证据化报告 |
+| Phase 4 | 审批与响应 PoC | 只读工具、审批门、审计 |
+| Phase 5 | 平台化 | UI、监控、部署和性能验证 |
 
-## 8. 如何协作和更新文档
+## 9. 文档维护
 
-- 新想法先记录为 Proposal，不立即视为正式需求。
-- 需求确认后更新 `02-requirements/requirements.md`。
-- 架构或技术选型变更时新增 ADR。
-- 里程碑和任务进度更新 `05-development-plan/roadmap.md` 或 GitHub Issues/Projects。
-- 只有经过确认的决定才进入正式文档。
-- 不要将真实密钥、Token、客户数据或未脱敏日志提交到仓库。
-
-## 9. 下一步
-
-先完成项目约束和 PoC 数据源确认，再确定第一阶段的实现范围。建议从一个云 WAF 日志源开始，完成“采集 → 解析 → 标准化 → 检索 → 基础告警”的端到端闭环。
+- 新想法先记录为 Proposal，不自动成为正式需求。
+- 确认的范围和约束更新到项目章程与需求文档。
+- 架构决策记录在 `docs/09-records/decision-log.md`。
+- 采集接口和查询约定记录在 `docs/07-api-design/log-ingestion-design.md`。
+- 计划变更同步更新 Roadmap 和 Change Log。
+- 每次文档变更应通过 Git commit 保留历史。
