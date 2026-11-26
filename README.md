@@ -92,6 +92,9 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 ```text
 .
 ├── README.md
+├── pyproject.toml
+├── uv.lock                 # 首次执行 uv lock / uv sync 后生成
+├── requirements.txt        # 兼容传统 pip 的依赖清单（暂时保留）
 ├── docs/
 │   ├── 01-project-planning/
 │   ├── 02-requirements/
@@ -134,32 +137,43 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 | Phase 4 | 审批与响应 PoC | 只读工具、审批门、审计 |
 | Phase 5 | 平台化 | UI、监控、部署和性能验证 |
 
-## 9. 本地运行 Adapter
+## 9. 本地开发环境（uv）
 
-建议使用 Python 3.10+。在仓库根目录执行：
+项目使用 `uv` 管理 Python 环境和依赖。建议使用 Python 3.10 或更高版本。
+
+安装 uv 后，在仓库根目录执行：
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+uv sync
+```
+
+该命令会根据 `pyproject.toml` 创建/更新项目虚拟环境、安装运行依赖和开发依赖，并生成或更新 `uv.lock`。无需手动激活虚拟环境。
+
+在 VS Code 中选择解释器：`Ctrl+Shift+P` → `Python: Select Interpreter` → 选择项目下的 `.venv\\Scripts\\python.exe`。
+
+首次创建本地云凭据文件：
+
+```powershell
 Copy-Item config/.env.aliyun.example .env.aliyun
 Copy-Item config/.env.tencent.example .env.tencent
 ```
 
-分别编辑两个 .env 文件，填写只读凭据、SLS Project/Logstore 或 CLS Topic ID。腾讯 CLS 的 `TENCENT_CLS_ENDPOINT` 使用 CLS 云 API Endpoint（通常为 `cls.tencentcloudapi.com`），Region 单独填写，例如 `ap-guangzhou`；不要填写 CLS 日志上传域名 `*.cls.tencentcs.com`。
+分别编辑两个文件，填写只读凭据、SLS Project/Logstore 或 CLS Topic ID。腾讯 CLS 的 `TENCENT_CLS_ENDPOINT` 使用 CLS 云 API Endpoint（通常为 `cls.tencentcloudapi.com`），Region 单独填写，例如 `ap-guangzhou`；不要填写 CLS 日志上传域名 `*.cls.tencentcs.com`。
 
-先运行本地契约测试：
-
-```powershell
-pytest -q
-```
-
-再单独验证云端查询（默认查询最近 15 分钟、每次最多返回 5 条，不会打印日志正文或密钥）：
+运行本地契约测试：
 
 ```powershell
-python -m scripts.check_cloud_adapters --provider aliyun
-python -m scripts.check_cloud_adapters --provider tencent
+uv run pytest -q
 ```
+
+单独验证云端查询（默认查询最近 15 分钟、每次最多返回 5 条，不会打印日志正文或密钥）：
+
+```powershell
+uv run python -m scripts.check_cloud_adapters --provider aliyun
+uv run python -m scripts.check_cloud_adapters --provider tencent
+```
+
+也可以使用 `uv run python ...` 执行其他项目命令。添加/移除依赖分别使用 `uv add <package>` / `uv remove <package>`；添加开发依赖使用 `uv add --dev <package>`。依赖版本以提交的 `uv.lock` 为准。
 
 注意：Adapter 首版已经实现，但必须使用真实账号验证 Endpoint、CAM/RAM 权限、WAF 字段名和查询语法后，才能认为云端联调通过。当前过滤字段映射是可调整的初始值，不代表已验证适用于你的 WAF 日志。
 
@@ -172,7 +186,6 @@ python -m scripts.check_cloud_adapters --provider tencent
 - 计划变更同步更新 Roadmap 和 Change Log。
 - 每次文档变更应通过 Git commit 保留历史。
 
-
 ## 11. PoC 云凭据配置
 
 SLS 与 CLS 使用独立环境变量文件：
@@ -180,9 +193,4 @@ SLS 与 CLS 使用独立环境变量文件：
 - 阿里云模板：`config/.env.aliyun.example` → 本地复制为根目录 `.env.aliyun`
 - 腾讯云模板：`config/.env.tencent.example` → 本地复制为根目录 `.env.tencent`
 
-```bash
-cp config/.env.aliyun.example .env.aliyun
-cp config/.env.tencent.example .env.tencent
-```
-
-在本地分别填写凭据和日志源信息。真实 `.env.aliyun` / `.env.tencent` 已由 `.gitignore` 忽略，不得提交。模板文件只包含空值。Adapter 应显式加载各自文件，不要让两个 Adapter 共用一个默认 `.env`。详细说明见 [日志接入设计](docs/07-api-design/log-ingestion-design.md#16-独立环境变量文件poc)。
+真实 `.env.aliyun` / `.env.tencent` 已由 `.gitignore` 忽略，不得提交。模板文件只包含空值。Adapter 应显式加载各自文件，不要让两个 Adapter 共用一个默认 `.env`。详细说明见 [日志接入设计](docs/07-api-design/log-ingestion-design.md#16-独立环境变量文件poc)。
