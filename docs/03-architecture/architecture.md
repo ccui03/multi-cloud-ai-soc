@@ -195,3 +195,55 @@ AI 的主要输入是有限、可追溯的证据包，而不是无限量原始�
 
 ### 11.6 策略建议边界
 Recommendation Service 只生成建议和审查材料，不持有厂商写凭据。建议需包含最小作用范围、业务影响、安全风险、测试步骤和回滚考虑。“建议已采纳”“人工已执行”“效果已验证”是不同状态，必须分别记录。当前不实现厂商策略写 API、自动封禁或自动规则例外；未来若讨论自动执行，必须重新进行独立架构决策。
+
+
+---
+
+## 12. Web 工作台与交互架构（v2.2 补充）
+
+### 12.1 前后端分层
+建议采用 React + TypeScript Web 前端，通过 FastAPI 统一 API 访问平台能力。前端不直接连接 PostgreSQL、SLS、CLS 或模型供应商。
+
+逻辑结构：
+- Web UI：Dashboard、Log Explorer、Alert Center、Incident Center、AI Copilot、Recommendation Center、Reports、Administration。
+- API/BFF 层：身份认证、RBAC、数据范围、请求校验、分页、限流、查询预算和审计。
+- Query Service：统一查询接口、Provider Capability 检查、查询计划、源端过滤/聚合、分页和结果归一化。
+- Incident/Investigation Service：告警组、事件、时间线、证据和调查状态。
+- Agent Service：LangGraph 会话、受控工具调用、Evidence Pack 和结构化输出。
+- Recommendation Service：策略建议草稿、审核状态和人工执行记录。
+- Audit/Usage Service：用户行为、查询审计、模型用量和成本。
+
+### 12.2 UI 信息架构
+主导航建议：总览、日志查询、告警中心、攻击事件、AI 助手、策略建议、报表、系统管理。
+
+日志详情、告警组详情和事件详情提供统一的 AI Copilot 入口。AI 回答中的证据链接可返回对应日志、告警组或事件详情，形成双向导航。
+
+### 12.3 AI 对话与工具调用边界
+- Chat UI 只与 Agent API 交互；Agent 只能调用后端注册的只读查询工具。
+- 工具层强制执行用户身份、角色、数据源范围、字段权限、时间范围、结果上限和成本预算。
+- LLM 不直接生成并执行任意 SQL 或 SLS/CLS DSL；Query Planner 将意图映射为受限查询结构，再由 Provider Adapter 翻译为厂商查询。
+- 对大范围/高成本查询可先返回计划、范围和估算，要求用户确认或缩小范围。
+- 每次工具调用产生审计记录和证据引用；AI 回答必须绑定 Evidence Pack。
+- 原始日志中的 URL、Header、Cookie、Body 均是不可信数据，不得作为模型指令；敏感字段在进入模型前按策略脱敏。
+- AI 会话上下文与事件上下文需明确绑定，防止跨事件上下文混淆。
+
+### 12.4 核心 API 领域（逻辑分组）
+- Dashboard API：运营总览与统计。
+- Logs API：日志查询、字段/过滤能力、记录详情。
+- Alerts API：告警信号与告警组。
+- Incidents API：事件队列、详情、关联和时间线。
+- AI Sessions/Messages API：AI 会话与对话。
+- Recommendations API：策略建议和人工审核状态。
+- Reports API：报表生成与查询。
+- Administration API：用户、角色、数据源和配置。
+以上为规划级 API 边界，不代表已确定最终 REST 路由。
+
+### 12.5 关键交互流程
+**日志查询**：UI Filter → API AuthZ/Budget → Query Planner → Provider Adapter → Normalizer → Paginated Results → Log Detail / Incident Link。
+
+**AI 对话**：Chat UI + Selected Context → Agent API → AuthZ → Query Plan → Read-only Tools → Evidence Pack → LangGraph Investigation → Structured Answer + Evidence Links → UI。
+
+**策略建议**：Incident → Recommendation Draft → Human Review → External Manual Change → Record External Change Reference → Outcome Verification。
+
+### 12.6 UI 架构安全
+所有权限判断在后端执行；前端隐藏控件只改善体验，不构成安全边界。查询接口防止越权访问、过大时间范围、分页绕过和导出滥用。会话和证据按租户/数据源范围隔离。审计记录用户、动作、时间、查询范围、结果数量、工具调用、模型版本和建议状态变更。
