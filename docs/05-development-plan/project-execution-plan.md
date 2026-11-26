@@ -61,6 +61,9 @@ Roadmap 描述“先做什么、为什么、达到什么结果”；Milestone �
 
 ### M0 — 规划与设计基线
 
+详细执行基线见 [M0 规划与设计基线](../01-project-planning/m0-baseline.md)。M0 的评审以该文件的 Exit Criteria 为准；当前 M0 Issue #1 保持开放，直至项目负责人确认所有 Proposed 决策并完成退出标准。
+
+
 **范围**
 - 明确首期仅 Alibaba WAF → SLS、Tencent WAF → CLS。
 - 确认产品第一版聚焦 AI 威胁分析，不扩展成完整传统 SOC。
