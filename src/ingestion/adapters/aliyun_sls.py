@@ -48,7 +48,7 @@ class AliyunSLSAdapter(BaseWAFAdapter):
         if client is None:
             try:
                 from aliyun.log import LogClient
-                from aliyun.log import AUTH_VERSION_4
+                from aliyun.log.auth import AUTH_VERSION_4
             except ImportError as exc:
                 raise RuntimeError("Install aliyun-log-python-sdk to use AliyunSLSAdapter") from exc
             client = LogClient(
