@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "python-dotenv>=1.0.1,<2.0",
+    "SQLAlchemy>=2.0,<3.0",
     "aliyun-log-python-sdk>=0.9.53,<1.0",
     "tencentcloud-sdk-python-common>=3.1.207,<4.0",
     "tencentcloud-sdk-python-cls>=3.1.207,<4.0",
