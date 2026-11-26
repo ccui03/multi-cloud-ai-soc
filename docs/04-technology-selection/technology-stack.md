@@ -1,44 +1,78 @@
-# 技术选型记录（PoC 基线）
+# 技术选型与评估原则（Technology Selection）
 
-- 版本：1.1
+- 版本：2.0
 - 日期：2026-11-26
-- 状态：首期范围已确认；具体 SDK/API 细节待验证
+- 状态：规划基线；PoC 组件选择已初步确定，规模化方案待测量
 
-## 1. 首期技术栈
+## 1. 选型原则
 
-| 能力 | 首期选择 | 选择理由 / 验证重点 |
+1. 先满足产品场景和验收指标，不以技术热度驱动引入组件。
+2. 核心数据模型和业务逻辑保持厂商无关。
+3. SDK/API 只在对应 Provider Adapter 中使用。
+4. 优先使用可本地复现、资源占用低、维护成本可控的组件。
+5. 引入新基础设施必须有容量、性能或功能证据，并记录 ADR。
+6. 数据安全、可观测性、可测试性和迁移成本与功能能力同等重要。
+
+## 2. PoC 技术基线
+
+| 能力 | 当前选择 | 评估重点 |
 |---|---|---|
-| WAF 日志存储与查询 | 阿里云 SLS、腾讯云 CLS | 原始日志继续留在云端 |
-| 日志接入 | Python Adapter + 官方 SDK/API | 隔离厂商差异 |
-| 后台任务 | Python worker / scheduler | 小规模 PoC，避免先部署消息队列 |
-| Backend | FastAPI | 提供配置、查询和分析 API |
-| Database | PostgreSQL + JSONB | 保存 Checkpoint、标准化事件、分析结果 |
-| Agent Workflow | LangGraph | 组织有状态分析流程和人工介入 |
-| Deployment | Docker Compose | 资源占用低、易于复现 |
-| Frontend | 暂缓或轻量页面 | 先验证数据链路和分析价值 |
+| WAF 日志源 | Alibaba Cloud SLS、Tencent Cloud CLS | 查询能力、分页、过滤、聚合、成本 |
+| Provider Adapter | Python + 官方 SDK/API | 统一契约、厂商隔离、错误语义 |
+| Schema Profiler | Python 通用分析组件 | 字段路径、类型、共现、漂移、隐私 |
+| Field Registry | 版本化配置/元数据 | 字段语义证据、敏感级别、映射维护 |
+| Normalizer | Python | 统一核心模型、vendor extension、版本兼容 |
+| Backend API | FastAPI | 数据源、事件、告警、调查 API |
+| Database | PostgreSQL + JSONB | 元数据、事件、Checkpoint、案例和审计 |
+| Agent Workflow | LangGraph | 状态管理、工具调用、人工介入、可评估性 |
+| Background Tasks | Python worker/scheduler | PoC 低复杂度；后续按负载评估 |
+| Deployment | Docker Compose | 单机低成本、可复现 |
+| Frontend | 后续 React 工作台 | Phase 6 再确定页面和交互范围 |
 
-## 2. 首期明确不引入
+## 3. 首期不强制引入
 
-| 技术 | 首期决定 | 重新评估条件 |
+| 技术 | 当前决定 | 重新评估条件 |
 |---|---|---|
-| QRadar | 不复用、不集成 | 当前 PoC 无此需求 |
-| Kafka | 暂不部署 | 多消费者、吞吐、缓冲或重放需求出现 |
-| OpenSearch | 暂不部署 | PostgreSQL 与源端查询无法满足检索/聚合需求 |
-| Redis | 暂不部署 | 缓存、并发任务或共享状态成为瓶颈 |
-| TheHive | 暂不部署 | 需要成熟事件生命周期管理 |
-| Shuffle | 暂不部署 | 需要独立 SOAR 工作流 |
-| MISP | 暂不部署 | 需要自托管情报平台且数据源明确 |
-| Kubernetes | PoC 不部署 | 需要多节点、高可用或集群运维 |
+| QRadar | 不复用、不集成 | 当前项目范围不需要 |
+| Kafka | 暂不部署 | 需要高吞吐缓冲、多消费者、重放或服务解耦 |
+| OpenSearch | 暂不部署 | 源端查询 + PostgreSQL 无法满足全文检索/查询性能 |
+| ClickHouse | 暂不部署 | 需要大规模列式分析、长周期聚合 |
+| Redis | 暂不部署 | 缓存、共享锁或任务状态成为瓶颈 |
+| TheHive | 暂不部署 | 决定集成成熟案例管理产品 |
+| Shuffle | 暂不部署 | 决定引入独立 SOAR 工作流引擎 |
+| MISP | 暂不部署 | 有明确威胁情报运营需求 |
+| Kubernetes | PoC 不部署 | 多节点、高可用、弹性扩缩容或标准化集群部署成为要求 |
 
-## 3. Adapter SDK 选择原则
+## 4. 统一事件标准
 
-- 使用官方支持的 SDK 或 API。
-- SDK 版本固定并在依赖文件中锁定。
-- 厂商 SDK 只存在于对应 Adapter 模块。
-- 查询语法通过 QueryRequest 转换，不在业务层散布厂商 DSL。
-- 用 mock 响应和脱敏真实样本进行契约测试。
-- 认证使用最小权限凭据，支持环境变量或 Secret 注入。
+- 首期采用轻量内部核心模型，并评估 OCSF 作为映射参考。
+- 不因追求标准而强制把所有厂商字段塞入固定字段。
+- 核心字段稳定，厂商特有内容进入受控扩展区。
+- 是否全面采用 OCSF，需通过 WAF 字段覆盖、扩展方式、查询便利性和维护成本评估后决定。
 
-## 4. 后续候选
+## 5. AI 模型与运行服务评估
 
-OCSF 可作为统一事件模型参考；OpenSearch、Kafka、Redis、MISP、TheHive、Shuffle 均可在 PoC 数据和性能验证后再评估。任何引入都需记录 ADR，说明新增组件解决的问题、资源成本和替代方案。
+模型选择需从以下维度评估，不在规划阶段提前绑定单一模型：
+- 中文/英文安全分析能力与结构化输出稳定性。
+- 上下文长度、工具调用能力和延迟。
+- 输入数据合规、数据保留和区域要求。
+- Token 价格、并发限制和可观测性。
+- 失败回退、模型版本升级和评估集回归。
+
+优先将模型供应商封装在统一 Model Gateway/配置接口之后，避免 Agent 业务流程与单一模型 API 耦合。
+
+## 6. Adapter 与插件扩展原则
+
+- 每个 Provider Adapter 实现统一接口，并声明查询/分页/聚合/回查能力。
+- 不支持的能力必须显式声明，不伪装成通用能力。
+- 厂商 SDK 不能进入 Normalizer、Detection 或 Agent 层。
+- 每个厂商交付脱敏样本、字段注册表、Adapter Contract Tests 和 Normalizer Tests。
+
+## 7. 重新评估机制
+
+新增组件前提交 ADR，至少说明：
+- 当前遇到的明确问题和量化证据。
+- 备选方案及轻量替代方案。
+- 资源、授权、运维和成本影响。
+- 数据迁移、故障恢复和退出成本。
+- 对现有架构和安全边界的影响。
