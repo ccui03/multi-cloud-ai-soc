@@ -100,8 +100,11 @@ class TencentCLSAdapter(BaseWAFAdapter):
         start = ensure_utc(request.start_time)
         end = ensure_utc(request.end_time)
         cursor = self.decode_cursor(request.cursor)
-        context = cursor.get("context", "")
         query = self._build_query(request.filters)
+        cursor_scope = {"query": query, "start": start.isoformat(), "end": end.isoformat()}
+        if cursor and any(cursor.get(key) != value for key, value in cursor_scope.items()):
+            raise ValueError("CLS cursor cannot be reused with a different query or time range")
+        context = cursor.get("context", "")
         try:
             from tencentcloud.cls.v20201016 import models
             sdk_request = models.SearchLogRequest()
@@ -139,7 +142,7 @@ class TencentCLSAdapter(BaseWAFAdapter):
             next_context = getattr(response, "Context", None) or ""
             list_over = bool(getattr(response, "ListOver", True))
             has_more = not list_over and bool(next_context)
-            next_cursor = self.encode_cursor({"context": next_context}) if has_more else None
+            next_cursor = self.encode_cursor({**cursor_scope, "context": next_context}) if has_more else None
             return FetchPage(
                 records=records,
                 next_cursor=next_cursor,
