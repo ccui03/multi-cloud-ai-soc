@@ -148,3 +148,50 @@
 - 未知字段和语义映射变更有报告、有版本、有回归测试。
 - 每条标准化事件均可追踪来源和解析版本。
 - AI 调查可回溯其使用的事件、查询和工具调用。
+
+
+---
+
+## 11. 分层攻击研判架构（v2.1 补充）
+
+### 11.1 核心处理链
+WAF 日志源 → Provider Adapter → Schema Discovery / Field Registry → Normalizer → Normalized Events → 确定性检测与统计 → Alert Signals → Alert Aggregation → Alert Groups → Incident Correlation → Security Incident Candidates → Evidence Pack Builder → LangGraph AI Analyst → Verdict / Confidence / Rationale → Policy Recommendation → Human Review / Manual Execution → Feedback。
+
+### 11.2 对象关系与边界
+- Normalized Event 忠实表达来源记录的安全相关事实，保留原始来源引用。
+- Alert Signal 由厂商告警、确定性检测规则或统计异常产生；普通访问日志不自动等于告警。
+- Alert Group 对重复、相似或同一行为簇的告警进行降噪组织，保留成员关系和聚合规则版本。
+- Security Incident 对一个或多个告警组及相关事件进行更高层关联，是主要研判对象。
+- Investigation 记录调查问题、时间范围、查询、证据、模型/提示版本和人工修改。
+- Policy Recommendation 是建议对象，不是厂商配置变更任务。
+
+关联关系必须有 provenance、原因和置信度。不能把同一 IP 作为唯一充分条件；需组合时间邻近、目标 Host/路径、规则/攻击类型、请求模式等信号，并考虑 NAT、代理、CDN、共享出口和爬虫造成的误关联。
+
+### 11.3 聚合与关联原则
+1. 先确定性、后 AI：去重、窗口聚合、计数、频率、Top-N 和规则检测先完成。
+2. 双层归并：Alert Group 负责相似告警降噪；Incident Correlation 负责跨告警组、跨域名/账号/云平台的活动关联。
+3. 多维关联：时间、来源/目标实体、Host、路径模板、规则类别、请求 ID、行为序列及可信情报（如启用）。
+4. 避免过度合并：支持拆分、撤销关联和人工纠正；记录关联规则版本。
+5. 按需下钻：证据包先包含统计、样本摘要和事件引用；只有验证假设时才通过只读工具查询有限原始日志。
+6. 保留未知：字段缺失、语义不明、代理/NAT 共享来源等均作为不确定性，不做强推断。
+
+### 11.4 Evidence Pack
+AI 的主要输入是有限、可追溯的证据包，而不是无限量原始日志。建议包含事件/告警组 ID、时间范围、数据源、数量和去重统计、规则/模块分布、动作分布、趋势、涉及实体摘要、代表性事件引用、source_record_id/raw_reference、字段语义状态、关联依据、反证、数据缺口、抽样方法以及 Schema/Normalizer 版本。证据包记录统计口径和抽样规则；模型不得把抽样样本误当作总体。
+
+### 11.5 核心业务实体（逻辑模型）
+| 实体 | 关键字段（概念级） | 作用 |
+|---|---|---|
+| normalized_event | event_id、source_id、event_time、core_fields、extensions、provenance | 标准化事实 |
+| alert_signal | signal_id、event_ref、detector_id、reason、severity | 单次检测信号 |
+| alert_group | group_id、group_key、window、member_refs、aggregation_version、stats | 告警降噪分组 |
+| security_incident | incident_id、status、verdict、severity、confidence、time_range、entity_refs | 核心研判对象 |
+| incident_relation | from_id、to_id、relation_type、reason、confidence、rule_version | 关联依据 |
+| evidence_item | evidence_id、source_ref、query_ref、fact、supports_or_contradicts | 可追溯证据 |
+| investigation | investigation_id、incident_id、workflow_version、model_version、status | 调查记录 |
+| policy_recommendation | recommendation_id、incident_id、rule_scope、proposal、risk、validation、status | 人工审核建议 |
+| analyst_feedback | feedback_id、target_ref、decision、reason、reviewer、outcome | 人工反馈 |
+
+这些是逻辑实体，不代表 PoC 必须拆成独立数据库表；可根据查询和事务需求采用 PostgreSQL 关系表与 JSONB。
+
+### 11.6 策略建议边界
+Recommendation Service 只生成建议和审查材料，不持有厂商写凭据。建议需包含最小作用范围、业务影响、安全风险、测试步骤和回滚考虑。“建议已采纳”“人工已执行”“效果已验证”是不同状态，必须分别记录。当前不实现厂商策略写 API、自动封禁或自动规则例外；未来若讨论自动执行，必须重新进行独立架构决策。
