@@ -27,7 +27,7 @@ class TencentCLSAdapter(BaseWAFAdapter):
         *,
         secret_id: str,
         secret_key: str,
-        endpoint: str,
+        endpoint: str = "cls.tencentcloudapi.com",
         region: str,
         topic_id: str,
         client: Any | None = None,
@@ -35,7 +35,6 @@ class TencentCLSAdapter(BaseWAFAdapter):
         required = {
             "secret_id": secret_id,
             "secret_key": secret_key,
-            "endpoint": endpoint,
             "region": region,
             "topic_id": topic_id,
         }
@@ -44,6 +43,7 @@ class TencentCLSAdapter(BaseWAFAdapter):
             raise ValueError("Missing CLS configuration: " + ", ".join(missing))
         self.region = region
         self.topic_id = topic_id
+        endpoint = endpoint or "cls.tencentcloudapi.com"
         if client is None:
             try:
                 from tencentcloud.common import credential
