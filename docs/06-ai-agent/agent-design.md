@@ -1,50 +1,113 @@
-# AI Agent 设计草案
+# AI Agent 设计基线（规划阶段）
 
-## 1. 设计原则
+- 版本：2.0
+- 状态：目标设计；尚未进入完整实现阶段
 
-- 先检索和聚合，再将有限上下文交给 LLM。
-- Agent 输出结论、证据、置信度和待确认问题。
-- 工具采用 allowlist，参数进行 Schema 校验。
-- 日志内容是数据，不是指令。
-- 高风险动作必须由独立策略层和人工审批控制。
+## 1. Agent 在产品中的定位
 
-## 2. 初步 Agent 职责
+AI Agent 是安全分析人员的辅助调查和报告层，不是日志采集器、规则引擎或最终安全决策者。Agent 只消费经过查询、筛选、标准化和脱敏的数据，通过受控工具补充证据。
 
-| Agent / Node | 职责 | 默认权限 |
-|---|---|---|
-| Alert Triage | 分类、摘要、优先级建议、去重建议 | 只读 |
-| Investigation | 查询相关 WAF/安全日志，整理时间线 | 只读 |
-| Threat Intel | 查询 IP/域名/URL 情报 | 只读 |
-| Response Planner | 生成处置建议和风险说明 | 只生成建议 |
-| Report Writer | 生成结构化调查报告 | 只读 |
+## 2. 目标工作流
 
-这些职责可以先作为一个 LangGraph 工作流中的节点，不必一开始就部署成多个独立 Agent 服务。
-
-## 3. 建议输出结构
-
-```json
-{
-  "summary": "事件摘要",
-  "severity": "low|medium|high|critical",
-  "confidence": 0.0,
-  "evidence": [
-    {
-      "event_id": "event-id",
-      "reason": "该证据支持的判断"
-    }
-  ],
-  "attack_hypotheses": [],
-  "recommended_actions": [],
-  "needs_human_review": true
-}
+```text
+Alert / Analyst Request
+        |
+Input Validation & Scope
+        |
+Triage
+        |
+Investigation Planning
+        |
+Read-only Evidence Retrieval
+        |
+Correlation / Hypothesis Verification
+        |
+Timeline & Findings
+        |
+Report Generation
+        |
+Human Review / Feedback
 ```
 
-实际实现时应定义 JSON Schema，并校验模型输出。
+## 3. 工作流节点
 
-## 4. 后续设计事项
+| Node | 职责 | 输入 | 输出 | 权限 |
+|---|---|---|---|---|
+| Input Guard | 校验事件 ID、时间范围和查询范围 | 用户请求/告警 | 合法调查任务 | 无数据源直连 |
+| Triage | 分类、摘要、优先级建议 | 标准化事件/告警 | 分诊结果 | 只读 |
+| Planner | 生成调查步骤和待验证假设 | 分诊结果 | 结构化调查计划 | 不执行任意工具 |
+| Evidence Retrieval | 查询事件、源日志和统计结果 | 受限查询参数 | 证据集合 | 只读 allowlist |
+| Correlation | 整理实体、时间线和跨源关联 | 证据集合 | 关联结果/假设 | 只读 |
+| Verification | 检查假设是否被证据支持 | 假设 + 证据 | 支持/反证/未知 | 只读 |
+| Report Writer | 生成报告和建议 | 已验证发现 | 结构化报告 | 不执行写操作 |
+| Human Review | 人工确认、修正和反馈 | 报告/建议 | 审核记录 | 人工操作 |
 
-- LangGraph 状态结构和 checkpoint。
-- 工具清单、输入输出 Schema 和权限。
-- Prompt Injection 防护和日志脱敏。
-- 模型选择、成本和数据合规。
-- 评估集：正常流量、误报、扫描、漏洞利用尝试和真实攻击样例。
+以上先作为单个 LangGraph 工作流中的节点，不拆分成多个独立 Agent 服务，除非后续规模和边界证明有必要。
+
+## 4. 工具边界
+
+允许的工具类别：
+- 标准化事件查询。
+- 告警/案例查询。
+- 按限定时间、数据源和实体回查源端日志。
+- 源端聚合统计和 Top-N 查询。
+- 查询 Schema/字段定义和数据源能力信息。
+
+工具必须具备：
+- allowlist 和严格输入/输出 Schema。
+- 最大时间范围、最大返回量、超时和调用预算。
+- 调用身份、参数摘要、结果引用和审计记录。
+- 统一错误处理，不向模型泄露云凭据或 SDK 内部敏感信息。
+
+Agent 不允许：
+- 任意执行厂商查询 DSL 或任意代码。
+- 读取无限时间范围或无限量日志。
+- 自行更改字段注册表或检测规则。
+- 直接调用厂商写 API、封禁 IP 或修改 WAF 策略。
+
+## 5. 输出契约
+
+报告至少包含：
+- summary：事件摘要。
+- severity：风险等级及理由。
+- confidence：置信度及依据。
+- evidence：事件 ID、来源、时间和支持理由。
+- timeline：按时间排序的关键活动。
+- hypotheses：攻击假设、支持证据、反证和未知项。
+- recommended_actions：建议动作、预期效果和风险。
+- limitations：数据范围、缺失字段和调查局限。
+- needs_human_review：是否需要人工复核。
+
+模型输出必须通过 JSON Schema/类型校验；证据引用必须能在系统中解析。
+
+## 6. 安全与可靠性
+
+- 所有日志内容都是不可信数据，不得成为系统指令或工具授权。
+- URL、Header、Cookie、User-Agent、请求参数和请求/响应体按敏感级别脱敏。
+- 不向模型传递 AK/SK、SecretId/SecretKey、凭据文件或完整云 API 响应。
+- 先做确定性过滤、聚合和规则分析，限制模型上下文。
+- Agent 节点需记录模型版本、提示模板版本、工具调用和失败状态。
+- 对模型超时、无效结构化输出和证据缺失设计重试/降级。
+- 结论必须区分事实、推断和未知，不允许将相关性直接表述为因果关系。
+
+## 7. 评估计划
+
+建立脱敏评估集，至少覆盖：
+- 正常访问与误报。
+- WAF 规则命中、阻断、挑战、观察/测试模式和放行。
+- Bot、扫描、CC/频率异常等行为。
+- 多 IP、多域名和跨云相似事件。
+- 字段缺失、未知枚举、时间偏差和重复日志。
+- Prompt Injection 样本和恶意构造日志内容。
+
+评估指标：
+- 证据引用正确率。
+- 事实错误/无依据结论比例。
+- 严重性判断一致性。
+- 调查步骤有效率。
+- 报告完整度和人工修订比例。
+- 单次调查 Token、成本和端到端耗时。
+
+## 8. 后续响应能力
+
+响应规划与响应执行分离。执行阶段必须经过独立策略层、权限校验、人工审批、TTL、回滚和结果核验。首期 Agent 仅输出建议，不执行云端写操作。
