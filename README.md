@@ -107,6 +107,7 @@ AI SOC 不必保存所有原始访问日志。优先由 SLS / CLS 执行时间�
 │   └── 09-records/
 ├── src/
 │   ├── ingestion/
+│   ├── storage/              # PostgreSQL models and repositories
 │   ├── api/
 │   └── agents/
 ├── tests/
@@ -177,7 +178,29 @@ uv run python -m scripts.check_cloud_adapters --provider tencent
 
 注意：Adapter 首版已经实现，但必须使用真实账号验证 Endpoint、CAM/RAM 权限、WAF 字段名和查询语法后，才能认为云端联调通过。当前过滤字段映射是可调整的初始值，不代表已验证适用于你的 WAF 日志。
 
-## 10. 文档维护
+## 10. 采集存储模块（首版）
+
+当前已增加 PostgreSQL-ready 的持久化与增量采集基础模块：
+
+- `src/storage/models.py`：`waf_records` 与 `ingestion_checkpoints` 两张表；原始字段使用 PostgreSQL JSONB（SQLite 测试时使用 JSON）。
+- `src/storage/database.py`：SQLAlchemy Engine / Session 管理与 PoC schema 初始化。
+- `src/storage/repository.py`：Fingerprint 幂等写入、Checkpoint 读写。
+- `src/ingestion/collector.py`：有界时间窗口、分页采集、重叠窗口和记录数上限；只有全部分页成功才推进 Checkpoint。
+- `tests/test_ingestion_storage.py`：使用 SQLite 验证去重、分页、Checkpoint 和失败保护。
+
+安装依赖后，业务入口可按以下方式初始化数据库（PoC 开发阶段）：
+
+```python
+from src.storage import Database, StorageRepository
+
+database = Database("postgresql+psycopg://user:password@localhost:5432/ai_soc")
+ database.create_schema()  # PoC only; production should use Alembic migrations
+repository = StorageRepository(database.session_factory)
+```
+
+PostgreSQL 驱动（例如 psycopg）需在实际部署时另行加入依赖。当前代码不包含调度器，也不会自动启动云端采集；需要由后续服务层显式调用 `IncrementalCollector.collect()`。采集上限触发时不会推进 Checkpoint，下一轮通过重叠窗口继续读取并依靠 Fingerprint 去重。
+
+## 11. 文档维护
 
 - 新想法先记录为 Proposal，不自动成为正式需求。
 - 确认的范围和约束更新到项目章程与需求文档。
