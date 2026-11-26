@@ -283,3 +283,58 @@ Recommendation Service 只生成建议和审查材料，不持有厂商写凭据
 
 ### 13.5 页面与领域服务边界
 UI 通过 API 调用 Dashboard、Query、Alert、Incident、Agent、Recommendation、Report 和 Administration 服务。Drawer 不拥有独立的日志查询权限或数据连接；它复用同一 Query Service 与 Agent Service。所有上下文解析、对象授权、查询预算和工具审计均在服务端完成。
+
+
+---
+
+## 14. 分析任务调度架构（v2.5）
+
+### 14.1 统一任务入口
+手动分析请求和 Scheduler 触发均创建统一 Analysis Task。任务元数据包括 task_id、trigger_type、source_ids、scope/time_range、filter/query_plan、idempotency_key、status、budget、checkpoint_ref、workflow_version、evidence_ref、result_ref 和审计信息。
+
+### 14.2 逻辑流程
+
+```text
+Manual UI Request ─┐
+                   ├─> Analysis Task API / Task Store
+Scheduler ─────────┘              |
+                                  v
+                         Scope & Budget Guard
+                                  |
+                         Query Planner / Adapter
+                                  |
+                       Normalize / Dedupe / Profile
+                                  |
+                      Rule & Statistical Pre-filter
+                                  |
+                     Alert Group / Behavior Clusters
+                                  |
+                       Candidate Threshold Gate
+                           /             \
+                    No Candidate       Candidate
+                       |                  |
+                 Record Scan Result   Evidence Pack
+                                          |
+                                    LangGraph Analyst
+                                          |
+                               Verdict / Evidence / Report
+                                          |
+                                  Human Review in UI
+```
+
+### 14.3 Scheduler 与 Worker 职责
+- Scheduler 只负责根据数据源配置和 Checkpoint 创建任务，不执行模型推理，也不直接访问厂商日志 API。
+- Worker 从任务队列/任务表领取任务，调用统一 Query Service 和 Analysis Service。PoC 可先采用 PostgreSQL 任务表 + 单独 Worker/进程，不因定时任务立即引入 Kafka/Redis。
+- Provider Adapter 仍由 Query Service 调用；云凭据不暴露给 Scheduler 或 LLM。
+- 手动任务和定时任务使用相同的 Worker 执行路径，差异仅在触发来源和初始范围。
+
+### 14.4 Checkpoint 与窗口
+- Checkpoint 以数据源为隔离边界，至少区分 last_successful_window_end 与最近调度/任务状态。
+- 每次任务读取 [previous_success_end - overlap, current_window_end] 的时间范围；重叠窗口用于吸收迟到日志，重复记录通过稳定 Fingerprint 幂等处理。
+- 只有查询结果完整性达到任务成功条件且必要结果已持久化，才推进成功水位；部分失败不能误标成功。
+- overlap 和运行频率应依据各源实际日志延迟、查询成本和限流测量调整。
+
+### 14.5 预算与运行控制
+按数据源设置最大查询频率、最大时间窗口、返回记录上限、单任务/每日查询预算、单任务/每日 LLM Token 或费用预算。任务超限时转为 waiting_for_budget、failed 或 completed_with_warnings，具体由可恢复性决定，并写明原因。支持暂停调度、恢复、手动补跑和任务取消。
+
+PoC 部署不强制引入消息队列；先使用 PostgreSQL 持久化任务状态与轻量 Worker。只有并发、吞吐或可靠性数据证明有需要时再评估队列。
