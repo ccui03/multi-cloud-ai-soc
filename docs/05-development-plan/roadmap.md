@@ -451,3 +451,17 @@ AI 不应把所有原始日志无差别发送给模型。应优先分析聚合�
 
 ### 依赖顺序
 统一事件/字段语义 → 预筛选 → 行为聚合 → Evidence Pack → LangGraph → 评估与优化。若前一阶段数据契约或质量不合格，不进入后一阶段规模化实现。
+
+
+---
+
+## 14. GitHub 项目执行跟踪
+
+阶段路线图定义项目能力演进；具体执行跟踪采用 Milestone + Issue + GitHub Projects。里程碑清单、Issue 拆分建议、看板状态、字段和 Issue 模板见 [项目执行计划](project-execution-plan.md)。
+
+当前执行顺序为：
+1. M0：完成产品/需求/架构/安全与验收基线评审。
+2. M1：完成阿里云 SLS 与腾讯云 CLS 数据源能力、字段样本和成本验证。
+3. M0/M1 达到退出标准后，再将后续阶段任务逐步移入 Ready。
+
+Milestones 和 Project Board 需要在 GitHub 网页端按执行计划创建；文档提交本身不代表这些 GitHub 管理对象已创建。
