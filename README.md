@@ -2,7 +2,7 @@
 
 面向多云环境的 AI 驱动安全运营平台。首期聚焦阿里云 WAF（SLS）与腾讯云 WAF（CLS），通过源端查询、轻量 Python Adapter 和 LangGraph 工作流，实现安全日志统一分析、攻击调查与报告生成。
 
-> 项目状态：PoC Adapter 首版已提交，等待真实云账号联调  
+> 项目状态：阿里云 SLS Adapter 已完成真实连接测试；腾讯云 CLS 联调待完成；PostgreSQL 持久化与增量采集基础模块已提交  
 > 当前文档版本：Project Baseline v1.1  
 > 更新时间：2026-11-26  
 > 文档语言：中文（技术名词保留英文）
