@@ -52,7 +52,14 @@ ALIYUN_SAFE_ENUM_FIELDS = (
     "compliance_action",
     "compliance_rule_type",
     "compliance_test",
+    "sema_action",
+    "sema_rule_type",
+    "sema_test",
+    "compliance_action",
+    "compliance_rule_type",
+    "compliance_test",
     "dlp_action",
+    "dlp_test",
     "bypass_matched_ids",
 )
 
@@ -60,10 +67,17 @@ ALIYUN_SAFE_ENUM_FIELDS = (
 # mapping is only a coarse common action category, not a replacement for it.
 ALIYUN_FINAL_ACTION_MAP = {
     "block": "block",
+    "monitor": "monitor",
+    "bypass": "allow",
+    "captcha_pass": "allow",
+    "captcha_strict_pass": "allow",
+    "js_pass": "allow",
+    "sigchl_pass": "allow",
     "captcha_strict": "challenge",
     "captcha": "challenge",
     "sigchl": "challenge",
     "js": "challenge",
+    "sigchl": "challenge",
 }
 
 
@@ -76,3 +90,42 @@ def normalize_final_action(value: object) -> str:
     if value is None:
         return "unknown"
     return ALIYUN_FINAL_ACTION_MAP.get(str(value).strip().lower(), "unknown")
+
+
+
+def classify_aliyun_action(raw: dict[str, object]) -> str:
+    """Classify the best available documented WAF action evidence.
+
+    Rule-module *_test=true means monitor mode even if *_action is block.
+    An absent action is not evidence of allow; bypass_matched_ids is recorded
+    separately as a matched allow-rule indicator.
+    """
+    final = raw.get("final_action")
+    if final not in (None, ""):
+        return normalize_final_action(final)
+
+    # Module-level action fields can describe a rule hit even when final_action
+    # is absent. Respect the corresponding test-mode flag before action value.
+    modules = (
+        "waf", "acl", "cc", "antiscan", "dlp", "scene",
+        "major_protection", "compliance", "sema",
+    )
+    for module in modules:
+        action = raw.get(f"{module}_action")
+        if action in (None, ""):
+            continue
+        test = raw.get(f"{module}_test")
+        if str(test).strip().lower() == "true":
+            return "monitor"
+        mapped = ALIYUN_FINAL_ACTION_MAP.get(str(action).strip().lower())
+        if mapped:
+            return mapped
+        if str(action).strip().lower() in {
+            "captcha_pass", "captcha_strict_pass", "js_pass", "sigchl_pass", "bypass"
+        }:
+            return "allow"
+        if str(action).strip().lower() == "monitor":
+            return "monitor"
+        if str(action).strip().lower() == "filter":
+            return "transform"
+    return "unknown"
