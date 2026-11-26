@@ -338,3 +338,18 @@ Scheduler ─────────┘              |
 按数据源设置最大查询频率、最大时间窗口、返回记录上限、单任务/每日查询预算、单任务/每日 LLM Token 或费用预算。任务超限时转为 waiting_for_budget、failed 或 completed_with_warnings，具体由可恢复性决定，并写明原因。支持暂停调度、恢复、手动补跑和任务取消。
 
 PoC 部署不强制引入消息队列；先使用 PostgreSQL 持久化任务状态与轻量 Worker。只有并发、吞吐或可靠性数据证明有需要时再评估队列。
+
+## 12. 核心分析引擎技术设计基线（v2.3）
+
+核心分析链路、对象契约、预筛选、行为聚合、Evidence Pack、LangGraph 和评估方法统一以 [核心分析引擎技术设计](../07-core-analysis-engine/core-analysis-engine-design.md) 为详细设计依据。
+
+架构约束补充：
+- Prefilter 与行为聚合消费统一事件和已确认字段语义，不直接耦合 SLS/CLS 原始字段。
+- Alert Group 与 Incident Candidate 分层；IP 不能作为唯一聚合或关联依据。
+- Evidence Pack 是 AI 主要事实输入，必须携带总体/样本数量、抽样方法、截断状态、反证、未知项和来源引用。
+- LangGraph 使用固定主流程和条件补充查询；工具由后端提供只读权限、查询预算、脱敏和审计。
+- AI 输出必须区分攻击尝试、WAF 动作、后端到达和业务系统 compromise；未知状态不得推断。
+- 规则版本、聚合版本、Evidence Pack 版本、模型/提示/工作流版本均需可追溯。
+- 当前 PoC 继续采用 PostgreSQL + 轻量 Worker；新增队列、图数据库或专用分析存储必须有容量/效果证据。
+
+以上为目标设计，具体窗口、阈值和性能目标待真实样本验证，不代表已实现。
