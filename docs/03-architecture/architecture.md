@@ -247,3 +247,39 @@ Recommendation Service 只生成建议和审查材料，不持有厂商写凭据
 
 ### 12.6 UI 架构安全
 所有权限判断在后端执行；前端隐藏控件只改善体验，不构成安全边界。查询接口防止越权访问、过大时间范围、分页绕过和导出滥用。会话和证据按租户/数据源范围隔离。审计记录用户、动作、时间、查询范围、结果数量、工具调用、模型版本和建议状态变更。
+
+
+---
+
+## 13. UI 交互与会话上下文架构（v2.3）
+
+### 13.1 前端布局
+采用全局应用壳层（App Shell）：
+- 左侧导航控制模块切换。
+- 中央内容区承载 Dashboard、Log Explorer、Alert Center、Incident Center 等完整页面。
+- 右侧 AI Drawer 为全局可展开面板。
+- 独立 AI Workspace 复用同一会话与消息组件，但提供更大的对话、会话列表和证据浏览空间。
+
+### 13.2 Context Envelope
+前端传递给 Agent 的上下文应采用明确的数据结构，而不是把整个页面状态或任意 DOM 内容直接塞入 Prompt。概念字段包括：
+- context_type：dashboard_filter / selected_logs / alert_group / incident / saved_query。
+- source_refs：数据源和记录引用。
+- scope：时间范围、租户/数据源范围、Host 等过滤范围。
+- selection_mode：selected_records / filter_summary / object_reference。
+- context_version：上下文快照版本。
+- user_id / session_id：由服务端身份和会话系统确定，不信任前端自行声明的用户身份。
+
+后端必须重新验证对象引用和用户授权。上下文只提供调查线索，不构成权限授予。对筛选条件传入的统计摘要和具体日志记录必须明确区分。
+
+### 13.3 面板与独立页面会话一致性
+- AI Drawer 和 AI Workspace 使用相同 Agent Session / Message / Investigation 标识。
+- 面板“打开到独立页面”只改变呈现容器，不新建或复制调查。
+- 会话保存当前上下文快照、活动事件引用、证据引用和查询审计引用。
+- 切换业务页面不会自动改变已有会话上下文；用户主动添加新上下文时记录变更。
+- 多事件调查必须显式显示活动事件和各事件关联关系，避免证据混用。
+
+### 13.4 UI 状态与后端任务
+长时间调查由后端任务状态驱动，至少区分 queued、running、waiting_for_user、completed、failed、cancelled。前端关闭面板不等于取消任务；用户需明确取消。重连或重新打开面板时根据 session/task 状态恢复展示。具体实时通信可在 UI 原型和技术验证后选择 SSE 或其他方案。
+
+### 13.5 页面与领域服务边界
+UI 通过 API 调用 Dashboard、Query、Alert、Incident、Agent、Recommendation、Report 和 Administration 服务。Drawer 不拥有独立的日志查询权限或数据连接；它复用同一 Query Service 与 Agent Service。所有上下文解析、对象授权、查询预算和工具审计均在服务端完成。
