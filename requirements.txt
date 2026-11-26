@@ -1,5 +1,6 @@
 # Python runtime
 python-dotenv>=1.0.1,<2.0
+SQLAlchemy>=2.0,<3.0
 
 # Alibaba Cloud SLS SDK
 aliyun-log-python-sdk>=0.9.53,<1.0
