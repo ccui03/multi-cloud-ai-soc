@@ -67,8 +67,9 @@ Human Approval (future response phase)
 
 ## 5. 当前技术验证基础
 
-- 阿里云 SLS Adapter 已完成一次真实连接和查询验证。
-- 腾讯云 CLS Adapter 已实现；真实云端联调仍需确认。
+- 项目代码骨架及部分 Adapter/接入模块已存在；代码存在不代表真实数据源验收通过。
+- 阿里云 SLS 近期 GetLogs 联调返回 HTTP 403，需在 M1 核查 Region、Project/Logstore、RAM 权限和请求配置。
+- 腾讯云 CLS 尚未进入本轮真实云端联调验证。
 - PostgreSQL 持久化、Checkpoint 和基础增量采集模块已提交。
 - 通用 Schema Profiler 第一版已提交，尚需执行测试和真实样本验证。
 - 正式统一安全事件模型、完整 Field Registry 治理、检测关联和 Agent 工作流仍属于规划/待实现内容。
@@ -78,6 +79,7 @@ Human Approval (future response phase)
 ## 6. 项目文档
 
 - [项目章程](docs/01-project-planning/project-charter.md)
+- [M0 规划与设计基线（范围、场景、领域对象、安全与验收）](docs/01-project-planning/m0-baseline.md)
 - [需求规格](docs/02-requirements/requirements.md)
 - [总体架构](docs/03-architecture/architecture.md)
 - [技术选型](docs/04-technology-selection/technology-stack.md)
@@ -120,25 +122,14 @@ Human Approval (future response phase)
 
 ## 9. Web SOC 管理工作台
 
-平台提供统一 Web 工作台，包含：
-- SOC 总览 Dashboard：攻击事件、告警、研判状态、误报趋势和数据源健康。
-- 日志查询：跨云 WAF 日志过滤、分页、详情和事件跳转。
-- 告警与事件中心：聚合告警、事件时间线、证据和人工复核。
-- AI 对话助手：自然语言查询日志、解释告警、调查事件、追问证据和生成策略建议。
-- 策略建议与报表：人工审核建议、记录外部执行结果、查看安全运营指标。
-- 系统管理：用户角色、数据范围、数据源和审计。
+MVP 不以完整 SOC 工作台为目标。首期 UI 只实现日志查询、日志详情、AI 分析面板、分析结果/证据定位和必要的任务状态；复杂 Dashboard、完整告警/案件中心、策略审批和报表中心暂缓。
 
 UI 与 AI 共用后端权限和查询服务。AI 对话仅通过受控只读工具访问日志和事件；WAF 策略仍由人工在外部控制台或变更流程执行。
 
 
 ## 10. UI 交互模式
 
-UI 采用“独立页面 + 上下文联动”模式：
-- 主工作区包含总览、日志查询、告警、攻击事件、策略建议和系统管理。
-- 全局右侧 AI 助手面板可从日志、告警、事件等页面展开。
-- 同时提供独立 AI 助手页面，用于完整多轮调查和历史会话管理。
-- Drawer 与独立 AI 页面共享同一会话、上下文和证据引用。
-- 页面切换不会静默改变 AI 调查上下文；AI 查询必须经过统一后端权限、查询范围和成本校验。
+保留“独立页面 + 上下文联动”和右侧 AI 面板的交互方向；MVP 先实现从日志查询/详情进入 AI 分析、查看结果并定位证据的最小闭环。独立 AI 页面和复杂会话管理按实际需要后续实现。
 
 
 ## 11. MVP 产品重点：简易 UI + AI 威胁分析
@@ -161,3 +152,8 @@ MVP 成功标准是代表性攻击样本能被正确识别、判断有证据可�
 ## 12. 核心分析引擎技术设计
 
 核心技术基线见 [核心分析引擎技术设计](docs/07-core-analysis-engine/core-analysis-engine-design.md)，覆盖日志预筛选、攻击行为聚合、Evidence Pack、LangGraph 研判节点/只读工具、威胁判断标准及准确率评估。该文档为规划基线，阈值、时间窗口、抽样规模和准确率目标均须经真实日志与人工标注数据验证；当前不代表这些能力已全部实现。
+
+
+## 13. M0 规划与设计基线
+
+M0 的统一评审入口为 [M0 规划与设计基线](docs/01-project-planning/m0-baseline.md)。历史需求与当前 MVP 范围存在冲突时，以该文件中已确认的决策为准；标记 Proposed 的内容须经项目负责人确认后生效。
