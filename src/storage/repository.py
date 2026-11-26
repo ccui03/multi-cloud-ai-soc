@@ -6,7 +6,6 @@ import json
 from datetime import datetime, timezone
 from typing import Iterable
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import sessionmaker
