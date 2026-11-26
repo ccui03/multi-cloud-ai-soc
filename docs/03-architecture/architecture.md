@@ -1,139 +1,150 @@
 # 总体技术架构（Architecture）
 
-- 版本：1.1
-- 状态：PoC 架构基线
+- 版本：2.0
+- 状态：目标架构基线（分阶段实现）
 - 日期：2026-11-26
 
-## 1. 架构原则
+## 1. 架构目标
 
-1. SLS / CLS 是原始 WAF 日志的主存储和查询平台。
-2. AI SOC 不全量搬迁原始日志；采用源端查询、筛选、聚合与按需回溯。
-3. SLS 与 CLS 的 API/查询差异由 Python Adapter 隔离。
-4. 规则和统计先处理，LLM 分析有限且有证据的数据。
-5. 首期只读、低资源、可本地复现；不引入非必要基础设施。
+构建厂商可插拔、核心分析能力可复用的 WAF AI SOC。首期接入阿里云 WAF/SLS 和腾讯云 WAF/CLS；后续可扩展其他云 WAF、商业 WAF 和本地安全设备。
 
-## 2. 逻辑架构
+## 2. 核心架构原则
+
+1. 厂商差异只进入 Provider Adapter、Provider Capability 和 Field Registry。
+2. Schema Discovery 负责发现结构，不负责猜测安全语义。
+3. Normalizer 输出统一核心字段，同时保留 vendor extensions 和 provenance。
+4. 检测、关联、调查和 Agent 只消费统一事件契约，不直接依赖厂商原始字段。
+5. 原始日志默认留在源端；项目侧存储必要事件、引用、状态和证据。
+6. 先确定性查询/规则/统计，再调用 LLM。
+7. 所有数据源访问只读起步；响应写操作独立授权并受人工审批控制。
+
+## 3. 目标逻辑架构
 
 ```text
-Alibaba Cloud WAF                         Tencent Cloud WAF
-       |                                          |
-       v                                          v
-      SLS                                        CLS
- (raw log store)                            (raw log store)
-       |                                          |
-       +-------------------+----------------------+
-                           |
-                 Python Adapter Layer
-             +-------------+--------------+
-             |                            |
-       AliyunSLSAdapter             TencentCLSAdapter
-             |                            |
-             +-------------+--------------+
-                           |
-                  Ingestion Service
-       (query planner / scheduler / retry / checkpoint)
-                           |
-                Normalize / Deduplicate
-                           |
-             +-------------+------------------+
+              WAF / Security Data Sources
+       +-------------+-------------+----------------+
+       |             |             |                |
+   Alibaba WAF   Tencent WAF   Other WAFs     Future Sources
+       |             |             |                |
+      SLS           CLS       Vendor APIs/Logs    Vendor APIs
+       +-------------+-------------+----------------+
+                             |
+                    Provider Adapter Layer
+             Auth / Query / Pagination / Retry / Limits
+                             |
+                    Source Capability Registry
+                             |
+                    Ingestion & Query Planner
+                             |
+             +---------------+----------------+
              |                                |
-       PostgreSQL                       Query-on-demand
- (checkpoint, normalized                 back to SLS/CLS
-  events, findings, audit)          (investigation context)
-             |
-         FastAPI
-             |
-      LangGraph Workflow
-       |      |       |
-     Triage Investigation Reporting
-       |      |       |
-       +-- read-only query tools --+
-             |
-       Evidence-based result
+       Schema Discovery                 Raw Evidence Reference
+       Profile / Drift                         |
+             |                                 |
+       Field Registry                          |
+       (vendor + product + log type)            |
+             |                                 |
+             +---------------+-----------------+
+                             |
+                     Normalization Engine
+                 Core Event + Vendor Extension
+                             |
+                  Dedup / Enrichment / Rules
+                             |
+             +---------------+----------------+
+             |               |                |
+          Detection       Correlation      Event Store
+             |               |                |
+             +---------------+----------------+
+                             |
+                    Alert / Case Service
+                             |
+                       FastAPI / UI
+                             |
+                      LangGraph Workflow
+              Triage / Investigation / Reporting
+                             |
+                 Evidence-backed Recommendations
+                             |
+                 Human Approval (future phase)
+                             |
+                 Provider Response Connector
 ```
 
-## 3. 数据流说明
+## 4. 分层职责
 
-### 3.1 常规增量处理
-- Scheduler 为每个数据源读取独立 Checkpoint。
-- 生成小时间窗口查询（初始测试 5–15 分钟轮询）。
-- Adapter 将统一过滤条件转换为厂商查询请求。
-- 结果分页读取、规范化、计算幂等键并写入 PostgreSQL。
-- 当前窗口所有页面持久化成功后才推进 Checkpoint。
-- 查询窗口可向前重叠，重复记录由幂等键处理。
-
-### 3.2 历史回溯
-- 调查员指定时间范围，例如过去 1 天或 7 天。
-- Query Planner 将大窗口切分为较小区间，逐段分页。
-- 历史任务不改变常规增量 Checkpoint。
-- 保存查询任务、条件、进度和结果摘要，支持暂停/恢复。
-
-### 3.3 源端分析与按需明细
-- SLS / CLS 执行时间、字段和动作条件过滤。
-- 对正常访问等高基数数据，优先在源端执行聚合/统计查询。
-- AI SOC 获取命中明细、聚合结果或有限上下文。
-- 对单个攻击源或事件，再按 IP、域名、URI、规则和时间窗口回查原始日志。
-
-## 4. 组件职责（PoC）
-
-| 组件 | 职责 | 首期是否部署 |
+| 层 | 核心职责 | 扩展方式 |
 |---|---|---|
-| SLS / CLS | 原始日志存储、查询、过滤、聚合 | 使用云端现有服务 |
-| Python Adapters | SDK/API 封装、查询转换、分页、错误归一化 | 是 |
-| Ingestion Service | 调度、Checkpoint、重试、幂等和标准化 | 是 |
-| FastAPI | 数据源、查询、事件和分析 API | 是 |
-| PostgreSQL | Checkpoint、事件、分析结果、审计元数据 | 是 |
-| LangGraph | 告警分诊、调查和报告流程 | 是 |
-| Kafka | 高吞吐持久化消息流 | 否，后续按需 |
-| OpenSearch | 大规模全文检索/分析 | 否，先验证源端查询与 PostgreSQL |
-| Redis | 缓存/分布式任务状态 | 否，出现需求后再引入 |
-| QRadar / TheHive / Shuffle | SIEM/Case/SOAR | 否，首期不使用 |
+| Provider Adapter | 认证、查询、分页、错误映射、速率限制 | 每厂商/日志服务一个适配器 |
+| Capability Registry | 声明时间过滤、分页、聚合、回查等能力及限制 | 按厂商/API 声明能力，不假设一致 |
+| Schema Discovery | 字段路径、类型、覆盖率、共现和变化检测 | 通用引擎 |
+| Field Registry | 字段语义、模块、敏感级别、标准映射、证据来源 | 每厂商/产品/日志类型配置 |
+| Normalizer | 类型转换、时间标准化、动作语义、统一事件 | 通用引擎 + 厂商映射插件 |
+| Detection & Correlation | 规则、阈值、聚合、实体和时间关联 | 通用规则 + 特定数据源扩展 |
+| Event / Case Service | 事件生命周期、案例、证据、处理记录 | 统一业务模型 |
+| AI Workflow | 分诊、调查、报告和建议 | 基于标准工具和统一事件 |
+| Response Gateway | 策略校验、审批、执行、TTL、回滚和审计 | 后续按厂商独立连接器 |
 
-## 5. 统一 Adapter 边界
+## 5. 数据处理流程
 
-上层服务只依赖统一的 QueryRequest、FetchPage、HealthStatus 等内部模型。Adapter 内部处理：
-- SLS/CLS 认证和客户端初始化。
-- Project/Logstore 或 Topic 等数据源定位。
-- 时间过滤和厂商查询语法转换。
-- 分页/游标和结果解码。
-- API 错误、限流、超时的统一映射。
-- 请求耗时和调用指标。
+### 5.1 接入与画像
+- 为每个数据源建立独立配置和只读凭据引用。
+- Adapter 负责受限时间查询和分页。
+- Schema Profiler 对脱敏样本或受控采样结果生成字段画像。
+- 自动报告字段覆盖率、类型、枚举分布和同记录共现关系。
+- 新字段、类型变化和未知枚举进入 Schema Change Review，不自动修改正式语义映射。
 
-Adapter 不负责 LLM 调用、事件风险判断、响应决策或云端写操作。
+### 5.2 字段注册与标准化
+- Field Registry 以 provider + product + log_type + schema_version 为边界。
+- 每个映射记录官方文档依据、样本证据、语义状态和测试用例。
+- Normalizer 将已确认字段转换为统一事件；未知字段放入 vendor extension。
+- 原始字段不被覆盖；动作分类与测试模式、规则命中和最终动作分别保存。
+- 解析失败进入可观测的异常记录，不静默丢弃。
 
-## 6. 存储策略
+### 5.3 检测、关联与调查
+- 常规高流量日志优先在源端过滤和聚合。
+- 规则引擎处理阈值、频率、异常和已知攻击特征。
+- 关联层基于实体、时间窗口、请求标识和攻击特征生成关联线索。
+- Agent 根据调查计划调用只读工具补充证据，不直接读取无限量原始日志。
 
-PostgreSQL 仅保存项目分析需要的数据：
-- 每个数据源的 Checkpoint 和采集任务状态。
-- 标准化后的安全事件及必要 raw_event（可配置保留策略）。
-- 聚合结果、告警/调查结果、证据引用。
-- 查询审计、模型分析元数据。
+## 6. 统一事件模型
 
-不默认将所有原始访问日志复制到 PostgreSQL。若只需保留引用，可存 source、时间、查询条件和源记录标识；但需验证源端记录可稳定回查。
+统一模型采用“稳定核心 + 厂商扩展 + 来源证据”：
+- Core：event_id、provider、vendor_product、source_id、event_time、event_type、severity、action、action_module。
+- Network/HTTP：source_ip、destination、host、path、method、status、request_id（按敏感策略处理）。
+- Security semantics：rule_id、rule_type、detection_result、final_action、test_mode、action_effectiveness。
+- Provenance：source_record_id、raw_reference、schema_version、parser_version、mapping_status。
+- Vendor extension：保存未映射但保留价值的原始字段，采用 JSONB 或等效结构。
 
-## 7. 安全边界
+重要：action、final_action、module_action、test_mode、HTTP status 是不同概念，不应压缩成单一 allow/block 字段。字段缺失和未知枚举均不得默认推断为 allow。
 
-1. SLS / CLS 凭据采用只读权限，限制到指定 Project/Logstore 或 Topic。
-2. Agent 只能调用只读查询工具，不直接持有云管理员凭据。
-3. URL、User-Agent、Header、Cookie、请求参数等日志内容均是不可信数据。
-4. 模型输出需结构化并引用事件证据，不能仅凭自然语言结论触发动作。
-5. 首期不执行 WAF 策略修改或 IP 封禁。
-6. 所有查询记录数据源、时间范围、过滤条件、调用者、耗时和结果摘要。
+## 7. 数据存储策略
 
-## 8. 部署架构
+- 源端日志平台是原始日志的权威存储。
+- PostgreSQL 用于数据源配置元数据、任务状态、Checkpoint、标准化事件、告警、案例、分析结果和审计。
+- 原始日志正文默认不全量复制；按调查和留存需求存必要脱敏片段或源端引用。
+- 统一事件保留策略按数据量、法规和调查价值配置。
+- 未来若 PostgreSQL 检索/聚合能力不足，再评估 ClickHouse/OpenSearch；若吞吐与解耦需求明确，再评估消息队列。
 
-首期采用 Docker Compose，建议最小服务：
-- api / worker（可先同一 Python 应用进程或分离容器）
-- PostgreSQL
-- 可选轻量调度器
+## 8. AI 与安全边界
 
-不部署 Kubernetes、Kafka、OpenSearch 或 Redis，除非 PoC 测量证明必要。
+- Agent 不直接持有厂商云凭据，只调用受控服务工具。
+- 工具采用 allowlist、严格参数 Schema、时间窗口和结果数限制。
+- LLM 输入仅包含必要的脱敏字段、统计结果和事件证据。
+- 原始日志中的任意文本均视为不可信内容，需防止 Prompt Injection。
+- 输出包含 evidence IDs、推理依据、置信度和不确定性。
+- 首期不允许 Agent 执行写操作。
 
-## 9. 待验证事项
+## 9. 部署演进
 
-- SLS 与 CLS 的查询 API/SDK、分页语义、最大窗口和结果限制。
-- 两个 WAF 日志字段、索引配置和查询语法。
-- 迟到日志分布和适当的重叠窗口。
-- 查询费用、API 限额、速率和并发限制。
-- 源端聚合能力是否满足需要，以及聚合结果如何分页。
-- PostgreSQL 在实际样本规模下的检索性能。
+- PoC：Docker Compose、单机、PostgreSQL；不强制引入 Kafka/OpenSearch/Redis/Kubernetes。
+- Pilot：按任务量拆分 API/Worker，完善指标、备份、迁移和密钥管理。
+- Production：根据容量、HA、租户隔离和合规要求评估队列、分析存储、集群部署和灾备。
+
+## 10. 架构验收
+
+- 新增厂商不要求修改通用 Profiler、事件核心模型和 Agent 主流程。
+- 不支持的厂商查询能力必须显式声明，不得伪装成支持。
+- 未知字段和语义映射变更有报告、有版本、有回归测试。
+- 每条标准化事件均可追踪来源和解析版本。
+- AI 调查可回溯其使用的事件、查询和工具调用。
