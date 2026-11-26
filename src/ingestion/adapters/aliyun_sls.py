@@ -153,4 +153,30 @@ class AliyunSLSAdapter(BaseWAFAdapter):
             message = str(exc).lower()
             if "invalid" in message or "syntax" in message:
                 raise InvalidQuery("SLS query rejected") from exc
-            raise ProviderUnavailable("SLS GetLogs request failed") from exc
+
+            # Preserve actionable SDK diagnostics without exposing credentials or log data.
+            error_code = None
+            error_message = None
+            get_error_code = getattr(exc, "get_error_code", None)
+            get_error_message = getattr(exc, "get_error_message", None)
+            if callable(get_error_code):
+                try:
+                    error_code = get_error_code()
+                except Exception:
+                    pass
+            if callable(get_error_message):
+                try:
+                    error_message = get_error_message()
+                except Exception:
+                    pass
+            status = getattr(exc, "resp_status", None)
+            request_id = getattr(exc, "requestId", None) or getattr(exc, "request_id", None)
+            details = [
+                f"error_code={error_code}" if error_code else None,
+                f"message={error_message}" if error_message else None,
+                f"http_status={status}" if status else None,
+                f"request_id={request_id}" if request_id else None,
+            ]
+            details = [item for item in details if item]
+            suffix = "; " + "; ".join(details) if details else f"; {type(exc).__name__}: {exc}"
+            raise ProviderUnavailable("SLS GetLogs request failed" + suffix) from exc
