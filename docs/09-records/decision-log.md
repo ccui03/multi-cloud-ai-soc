@@ -17,6 +17,10 @@
 | 2026-11-26 | DEC-010 | 规划优先于新增开发 | Accepted | 当前优先完善产品需求、场景、数据模型、验收指标和路线图；暂停无明确计划依据的功能开发 |
 | 2026-11-26 | DEC-011 | 安全语义治理 | Accepted | 自动 Schema 分析只发现结构和统计关系；安全语义必须由官方文档、样本证据和测试共同确认，未知值不得猜测 |
 
+| 2026-11-26 | DEC-012 | AI 研判基本对象 | Accepted | 告警先聚合为 Alert Group，再关联形成 Security Incident；Incident 是主要 AI 研判对象，必要时按需下钻单条日志 |
+| 2026-11-26 | DEC-013 | WAF 策略调整权限 | Accepted | AI 只生成有证据的策略优化建议，由安全人员人工审核和执行；当前不提供自动封禁或 WAF 策略写入 |
+| 2026-11-26 | DEC-014 | 研判结论分类 | Accepted | 采用 confirmed_malicious、likely_malicious、likely_legitimate、confirmed_legitimate、inconclusive，允许证据不足，不强制二元判断 |
+
 ## 决策影响与复核条件
 
 - DEC-003：若源端查询成本、延迟或可用性不满足要求，再评估日志复制和专用分析存储。
