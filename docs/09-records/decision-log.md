@@ -11,14 +11,14 @@
 | 2026-11-26 | DEC-004 | PoC 资源规模 | Accepted | 采用小规模、低成本资源；Docker Compose 起步 |
 | 2026-11-26 | DEC-005 | 日志接入架构 | Accepted | 使用统一 Python Adapter，分别封装 SLS 和 CLS |
 | 2026-11-26 | DEC-006 | 首期数据访问权限 | Accepted | 只读查询；云端写操作不在首期默认范围 |
-| 2026-11-26 | DEC-007 | 首期组件范围 | Accepted | 暂不部署 Kafka、OpenSearch、Redis、TheHive、Shuffle、Kubernetes；按需再评估 |
+| 2026-11-26 | DEC-007 | 首期组件范围 | Accepted | 暂不部署 Kafka、OpenSearch、Redis、TheHive、Shuffle、Kubernetes；按需再评估 |\n| 2026-11-26 | DEC-008 | 多厂商 WAF 扩展方式 | Accepted | 采用厂商 Adapter + 厂商字段语义注册表 + 厂商无关 Schema Profiler / Normalizer；新增厂商不复制分析逻辑，原始字段与标准字段映射分离 |
 
 ## 决策影响与复核条件
 
 - DEC-003：若源端查询成本过高、查询延迟不满足或需要跨系统长期检索，再评估日志复制/专用搜索引擎。
 - DEC-004：若并发、吞吐或可用性要求超出单机能力，再拆分服务或引入队列。
 - DEC-005：若厂商 API 不支持预期分页/过滤能力，应调整 Adapter 契约并记录 ADR。
-- DEC-007：任何新增基础设施必须说明解决的问题、资源消耗和更轻量替代方案。
+- DEC-007：任何新增基础设施必须说明解决的问题、资源消耗和更轻量替代方案。\n- DEC-008：新增厂商时优先复用通用采样、字段画像、共现分析、脱敏和测试框架；只有厂商 API、分页或认证机制差异才进入专属 Adapter。
 
 ## 决策记录模板
 
