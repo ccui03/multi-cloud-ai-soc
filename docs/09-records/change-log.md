@@ -19,3 +19,12 @@
 - 更新 README，采用 `uv sync`、`uv run pytest` 和 `uv run` 执行项目命令。
 - 暂时保留 `requirements.txt`，兼容传统 pip 安装方式；后续以 `pyproject.toml` 和 `uv.lock` 为依赖管理基线。
 - `uv.lock` 由开发者在本地首次运行 `uv sync` 时生成并提交。
+
+
+## 2026-11-26 — PostgreSQL persistence and incremental collector foundation
+- 新增 SQLAlchemy 持久化模型：`waf_records` 与 `ingestion_checkpoints`。
+- 新增 Fingerprint 幂等写入仓储，支持 PostgreSQL 与 SQLite 测试。
+- 新增有界增量采集器：分页、重叠窗口、安全结束延迟、每轮记录数上限。
+- 仅在完整遍历分页后推进 Checkpoint；失败或触及采集上限时不推进。
+- 新增 SQLite 测试覆盖去重、分页和失败不推进 Checkpoint。
+- 当前仍需后续实现 Alembic 迁移、PostgreSQL 驱动配置、标准化事件模型、脱敏和保留策略。
