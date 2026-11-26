@@ -6,16 +6,10 @@ from typing import Any
 
 from ..models import FetchPage, QueryRequest, RawWAFRecord, ensure_utc
 from .base import BaseWAFAdapter, InvalidQuery, ProviderUnavailable
+from .aliyun_fields import ALIYUN_FILTER_FIELDS
 
 
-SLS_FILTER_FIELDS = {
-    "action": "action",
-    "source_ip": "remote_addr",
-    "hostname": "host",
-    "attack_type": "attack_type",
-    "rule_id": "rule_id",
-    "http_method": "http_method",
-}
+SLS_FILTER_FIELDS = ALIYUN_FILTER_FIELDS
 
 
 class AliyunSLSAdapter(BaseWAFAdapter):
