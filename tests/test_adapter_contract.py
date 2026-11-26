@@ -64,3 +64,14 @@ def test_aliyun_final_action_mapping_does_not_assume_allow():
     assert normalize_final_action("captcha") == "challenge"
     assert normalize_final_action(None) == "unknown"
     assert normalize_final_action("unexpected") == "unknown"
+
+
+def test_aliyun_module_action_respects_test_mode_and_allow_values():
+    from src.ingestion.adapters.aliyun_fields import classify_aliyun_action
+
+    assert classify_aliyun_action({"acl_action": "block", "acl_test": "true"}) == "monitor"
+    assert classify_aliyun_action({"acl_action": "block", "acl_test": "false"}) == "block"
+    assert classify_aliyun_action({"scene_action": "bypass", "scene_test": "false"}) == "allow"
+    assert classify_aliyun_action({"cc_action": "captcha_pass", "cc_test": "false"}) == "allow"
+    assert classify_aliyun_action({"dlp_action": "filter", "dlp_test": "false"}) == "transform"
+    assert classify_aliyun_action({"bypass_matched_ids": "123"}) == "unknown"
