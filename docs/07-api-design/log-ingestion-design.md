@@ -358,3 +358,30 @@ tencent_config = dotenv_values(ROOT / ".env.tencent")
 - 不要将密钥放入 README、YAML、Dockerfile、命令行参数、Issue 或截图。
 - 如果真实密钥曾经提交到 Git，即使随后删除文件，也应立即在云平台轮换/吊销密钥；Git 历史仍可能保留旧值。
 - 提交前运行 `git status --short`，确认真实 .env 文件未被跟踪；可用 `git check-ignore -v .env.aliyun .env.tencent` 检查忽略规则。
+
+
+## 17. PostgreSQL 持久化与增量采集首版
+
+代码位置：
+
+- `src/storage/models.py`：`waf_records` 保存选中的日志记录，`ingestion_checkpoints` 保存每个 source 的完成水位。
+- `src/storage/database.py`：SQLAlchemy 数据库封装；PoC 可调用 `create_schema()`，生产环境应使用 Alembic 等版本化迁移。
+- `src/storage/repository.py`：按 Fingerprint 唯一约束幂等插入，并提供 Checkpoint 读写。
+- `src/ingestion/collector.py`：单个有界窗口的分页采集器。
+
+### 采集安全语义
+
+1. 查询结束时间减去 safety lag，避免读取尚未稳定写入的最新日志。
+2. 从上次完整成功的 watermark 减去 overlap，容忍迟到日志；首次运行使用有限 lookback。
+3. 每页先写入数据库，写入通过 Fingerprint 唯一约束去重。
+4. 只有所有分页成功且 Adapter 明确返回 `has_more=False`，才推进 watermark。
+5. 触发 `max_records_per_run` 时停止且不推进 watermark；下一轮重叠采集可安全补齐。
+6. 任意页面请求失败时不推进 watermark；已写入的页面不会重复插入。
+
+### 当前边界
+
+- 这是同步 PoC 采集器，不含定时调度、自动重试调度、死信队列或任务租约。
+- `create_schema()` 仅适合开发 PoC；生产升级需要数据库迁移。
+- PostgreSQL 使用 JSONB；SQLite 仅用于单元测试。PostgreSQL 运行时还需安装 psycopg 驱动。
+- 当前保存的是 Adapter 返回的原始记录和必要元数据，尚未实现最终的 NormalizedSecurityEvent schema、字段脱敏策略和数据保留清理任务。
+- 对没有源端稳定 ID 的记录，Fingerprint 使用 provider、source、event_time 和规范化 raw JSON。需使用脱敏真实日志验证该策略，避免动态字段导致去重率偏低。
