@@ -284,6 +284,17 @@ ingestion:
 8. 只读 RAM/CAM 权限范围。
 
 
+## 14.1 阿里云 WAF 3.0 字段映射基准
+
+阿里云字段语义以官方文档为准，项目维护的字段注册表和字段映射见：
+
+- `src/ingestion/adapters/aliyun_fields.py`
+- `docs/08-data-model/aliyun-waf-field-mapping.md`
+
+当前阿里云 SLS 查询过滤白名单按官方字段调整：`action -> final_action`、`source_ip -> real_client_ip`、`hostname -> host`、`attack_type -> final_rule_type`、`rule_id -> final_rule_id`、`http_method -> request_method`。这些字段语义有官方依据，但实际是否可检索仍需在目标 Logstore 验证索引配置。
+
+字段不存在不代表字段无效；需要区分必选字段、可选字段、当前请求是否命中相应模块，以及 WAF 日志投递配置。动作分类必须保留原始字段，并结合模块的 `*_test` 字段识别观察模式；不能将缺少 `final_action` 或 HTTP 200 直接判定为放行。
+
 ## 15. Adapter 首版实现说明
 
 代码位置：
